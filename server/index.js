@@ -7,13 +7,15 @@ import { APP_ROOT, loadConfig } from './config.js';
 import { migrate, openDb } from './db.js';
 import { createRouter } from './http.js';
 import { registerAll } from './routes/index.js';
+import { renderPdf } from './render/index.js';
+import { findChrome } from './render/pdf.js';
 
 function isLoopback(host) {
   return host === 'localhost' || host === '::1'
     || (isIP(host) === 4 && host.startsWith('127.'));
 }
 
-export async function startServer({ env = process.env, overrides = {}, log = console } = {}) {
+export async function startServer({ env = process.env, overrides = {}, log = console, deps = {} } = {}) {
   const config = { ...loadConfig(env), ...overrides };
   const db = openDb(config.dataDir);
   let server;
@@ -21,7 +23,15 @@ export async function startServer({ env = process.env, overrides = {}, log = con
     migrate(db, { dir: join(APP_ROOT, 'server', 'migrations'), backupDir: join(config.dataDir, 'backups'), log });
     ensureOwnerToken(db, log);
     const router = createRouter();
-    registerAll(router);
+    const injected = {
+      renderPdf: deps.renderPdf ?? renderPdf,
+      chrome: deps.chrome ?? { bin: config.chromeBin || findChrome(env), docker: config.docker }
+    };
+    registerAll({
+      add(method, path, handler, options) {
+        router.add(method, path, (c) => handler({ ...c, ...injected }), options);
+      }
+    });
     server = createServer((req, res) => router.handle(req, res, { db, config, log }));
     await new Promise((resolve, reject) => {
       server.once('error', reject);

@@ -32,6 +32,10 @@ async function readJson(file) {
   }
 }
 
+export function validateTemplateMeta(meta, where = 'meta') {
+  validateMeta(meta, meta?.id, where);
+}
+
 export async function loadBuiltinTemplates(dir) {
   const templates = new Map();
   const entries = (await readdir(dir, { withFileTypes: true })).filter((entry) => entry.isDirectory())

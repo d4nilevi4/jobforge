@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { createToken } from '../server/auth.js';
 import { startServer } from '../server/index.js';
 
-export async function startTestServer({ withToken = 'owner' } = {}) {
+export async function startTestServer({ withToken = 'owner', deps } = {}) {
   const dataDir = await mkdtemp(join(tmpdir(), 'jobforge-test-'));
   let instance;
   let initialSecret;
@@ -20,6 +20,7 @@ export async function startTestServer({ withToken = 'owner' } = {}) {
     instance = await startServer({
       env: { ...process.env, DATA_DIR: dataDir, PORT: '0', HOST: '127.0.0.1' },
       log,
+      deps,
     });
   } catch (error) {
     await rm(dataDir, { recursive: true, force: true });
