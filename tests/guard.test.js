@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { check, checkContent, checkCover, normalizeToken, skillAllowed } from '../server/guard.js';
+import { spawnSync } from 'node:child_process';
+import { check, checkContent, checkCover, normalizeToken, safeTest, skillAllowed } from '../server/guard.js';
 import { profile, cleanContent } from './guard-fixtures.js';
 
 const clone = (value) => structuredClone(value);
@@ -60,7 +61,7 @@ const cases = [
     message: /4 words.*allows 3/u,
   },
   {
-    code: 'wrong_language', path: 'language', warning: true,
+    code: 'wrong_language', path: 'summary', warning: true,
     change: ({ content }) => { content.summary = 'Создаю надёжные полезные инструменты.'; },
   },
   {
@@ -183,20 +184,44 @@ test('matches dates against each profile entry for the same employer', () => {
   assert.deepEqual(check(input), { errors: [], warnings: [] });
 });
 
-test('matches project titles after removing trailing parentheses and matching either direction', () => {
-  for (const title of ['EXAMPLE TOOL (desktop)', 'Tool', 'Example Tool Extended (demo)', 'Example Tool (other context)']) {
+test('matches equal project titles after normalizing whitespace, case and one trailing parenthetical', () => {
+  for (const title of ['EXAMPLE TOOL (desktop)', '  Example   Tool  ', 'Example Tool (other context)']) {
     const input = request();
     input.content.projects[0].title = title;
     assert.deepEqual(check(input), { errors: [], warnings: [] }, title);
   }
+  for (const title of ['E', 'Tool', 'Example Tool Extended (demo)', 'Example Tool (desktop) (demo)']) {
+    const input = request();
+    input.content.projects[0].title = title;
+    assert.equal(check(input).errors[0]?.code, 'unknown_project', title);
+  }
 });
 
-test('matches education institutions using case insensitive substrings in either direction', () => {
-  for (const institution of ['EXAMPLE UNIVERSITY', 'University', 'Example University of Computing']) {
+test('matches education only when normalized institution, degree and years all match', () => {
+  for (const institution of ['EXAMPLE UNIVERSITY', '  Example   University ']) {
     const input = request();
     input.content.education[0].institution = institution;
+    input.content.education[0].degree = ' bsc ';
+    input.content.education[0].years = ' 2010 – 2014 ';
     assert.deepEqual(check(input), { errors: [], warnings: [] }, institution);
   }
+  for (const [field, value] of [
+    ['institution', 'University'], ['institution', 'Example University of Computing'],
+    ['degree', 'PhD'], ['years', '2020 - 2024'],
+  ]) {
+    const input = request();
+    input.content.education[0][field] = value;
+    const error = check(input).errors[0];
+    assert.equal(error.code, 'unknown_education');
+    assert.equal(error.path, `education[0].${field}`);
+    assert.ok(error.message.includes(JSON.stringify(profile.education[0])));
+    assert.ok(error.message.includes(`Fields that differ: ${field}.`));
+  }
+  const input = request();
+  input.profile.education.unshift({ institution: 'Other University', degree: 'MA', years: '2000 - 2002' });
+  input.content.education[0].degree = 'PhD';
+  input.content.education[0].years = '2026';
+  assert.match(check(input).errors[0].message, /Closest profile entry:.*Example University.*Fields that differ: degree, years/u);
 });
 
 test('checks familiar items in every required prose field and in skill tokens', () => {
@@ -330,6 +355,84 @@ test('invalid profile regex patterns warn once each while valid patterns still r
   assert.match(warnings[2].message, /profile\.rules\.forbid_patterns\[1\]\.pattern/u);
 });
 
+test('safeTest supports a custom timeout and normal Unicode regex matches', () => {
+  assert.equal(safeTest(/инструменты/iu, 'ИНСТРУМЕНТЫ'), true);
+  assert.equal(safeTest(/tools/iu, 'other text'), false);
+  assert.throws(() => safeTest(/^(a+)+$/iu, `${'a'.repeat(28)}!`, { timeoutMs: 20 }), {
+    code: 'ERR_SCRIPT_EXECUTION_TIMEOUT'
+  });
+});
+
+test('profile patterns compile once per check even when shared across rule sources', (t) => {
+  const NativeRegExp = RegExp;
+  const calls = [];
+  t.mock.method(globalThis, 'RegExp', function(pattern, flags) {
+    calls.push([pattern, flags]);
+    return new NativeRegExp(pattern, flags);
+  });
+  const facts = {
+    do_not_claim: [{ text: 'Avoid marker', patterns: ['marker', '[', 'marker'] }],
+    rules: { forbid_patterns: [{ pattern: 'marker', message: 'Avoid marker' }, { pattern: '[', message: 'Broken' }] }
+  };
+  const content = { headline: 'Marker', summary: 'Marker' };
+  assert.equal(check({ content, profile: facts }).errors.length, 6);
+  assert.deepEqual(calls, [['marker', 'iu'], ['[', 'iu']]);
+  check({ content, profile: facts });
+  assert.equal(calls.length, 4);
+});
+
+test('catastrophic profile patterns warn once and are skipped across remaining fields and rule sources', () => {
+  const script = `
+    import assert from 'node:assert/strict';
+    import { check } from './server/guard.js';
+    const text = 'a'.repeat(28) + '!';
+    const profile = {
+      do_not_claim: [{ text: 'Avoid pattern', patterns: ['^(a+)+$'] }],
+      rules: { forbid_patterns: [{ pattern: '^(a+)+$', message: 'Avoid pattern' }] }
+    };
+    const content = { headline: text, summary: text, experience: [{ bullets: Array(12).fill(text) }] };
+    for (let index = 0; index < 2; index++) {
+      const result = check({ content, cover: { text }, profile });
+      assert.deepEqual(result.errors, []);
+      assert.equal(result.warnings.length, 1);
+      assert.equal(result.warnings[0].code, 'profile_rule_timeout');
+      assert.equal(result.warnings[0].path, 'headline');
+      assert.match(result.warnings[0].message, /took too long.*skipped.*simplify/u);
+    }
+    const result = check({ cover: { text }, profile: { rules: profile.rules } });
+    assert.equal(result.warnings[0].code, 'profile_rule_timeout');
+  `;
+  const result = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
+    cwd: new URL('..', import.meta.url), timeout: 1500, encoding: 'utf8'
+  });
+  assert.equal(result.error, undefined, result.error?.message);
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('built-in normalization and line-count detection handle long adversarial input promptly', () => {
+  const script = `
+    import assert from 'node:assert/strict';
+    import { check, normalizeToken, skillAllowed } from './server/guard.js';
+    assert.equal(normalizeToken('.'.repeat(100000) + 'X'), '.'.repeat(100000) + 'x');
+    assert.equal(skillAllowed('('.repeat(100000) + 'X', {}), false);
+    const result = check({
+      content: {
+        projects: [{ title: ' '.repeat(100000) + 'X' }],
+        experience: [{ bullets: ['1' + ' '.repeat(100000) + 'X', '1.'.repeat(50000) + 'X'] }],
+        summary: '1'.repeat(100000) + 'a'
+      },
+      profile: { projects: [{ title: 'X (demo)' }] }
+    });
+    assert.deepEqual(result.errors, []);
+    assert.equal(result.warnings.some(({code}) => code === 'code_line_counts'), false);
+  `;
+  const result = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
+    cwd: new URL('..', import.meta.url), timeout: 1500, encoding: 'utf8'
+  });
+  assert.equal(result.error, undefined, result.error?.message);
+  assert.equal(result.status, 0, result.stderr);
+});
+
 test('never guards custom template extra content', () => {
   const input = request();
   input.content.extra = { summary: 'Kubernetes team lead — 99%', bullets: ['lines of code'.repeat(30)] };
@@ -347,22 +450,39 @@ test('counts cover words using Unicode whitespace and permits the exact limit', 
   assert.match(result.errors[0].message, /4 words/u);
 });
 
-test('uses resume language by default and supports an explicit language override', () => {
+test('uses each document language and reports the path of every mismatched prose part', () => {
   const input = request();
-  input.content.language = 'ru-RU';
-  assert.equal(check(input).warnings[0].code, 'wrong_language');
-  assert.deepEqual(check({ ...input, language: 'en-US' }), { errors: [], warnings: [] });
-  input.content.summary = 'Создаю инструменты.';
-  assert.deepEqual(check(input), { errors: [], warnings: [] });
   input.content.language = 'en-US';
-  assert.deepEqual(check(input), { errors: [], warnings: [] });
-  input.content.summary += ' Надёжно.';
-  assert.equal(check(input).warnings[0].code, 'wrong_language');
+  input.content.experience[0].bullets = ['Создаю надёжные полезные инструменты.'];
+  input.content.projects[0].bullets = ['Создаю надёжные полезные инструменты.'];
+  input.cover = { language: 'en', text: 'Создаю надёжные полезные инструменты.' };
+  assert.deepEqual(check(input).warnings.map(({ code, path }) => [code, path]), [
+    ['wrong_language', 'experience[0].bullets[0]'],
+    ['wrong_language', 'projects[0].bullets[0]'],
+    ['wrong_language', 'cover.text'],
+  ]);
+  input.cover.language = 'ru';
+  assert.equal(checkCover(input.cover, input.profile).warnings.length, 0);
+  input.cover.text = cleanCover.text;
+  assert.equal(checkCover(input.cover, input.profile).warnings[0].path, 'cover.text');
+  assert.equal(check({ ...input, language: 'ru' }).warnings[0].path, 'experience[0].bullets[0]');
+});
+
+test('language warnings require three wrong-script words and more than thirty percent of letters', () => {
+  for (const [language, text, warns] of [
+    ['en', 'Я Я Я abcdefg', false], ['en', 'Я Я Я abcdef', true],
+    ['en', 'Создаю инструменты', false], ['en', 'Tools using C# and Unity', false],
+    ['ru', 'Разрабатываю приложения на C# и Unity.', false], ['ru', 'Build reliable tools', true],
+  ]) {
+    const warnings = checkCover({ language, text }, profile).warnings;
+    assert.equal(warnings.length, warns ? 1 : 0, text);
+    if (warns) assert.equal(warnings[0].code, 'wrong_language');
+  }
 });
 
 test('checks summary and bullet numbers with suffixes once per resume and ignores years', () => {
   const input = request();
-  input.content.summary = 'Maintained 75% uptime, 20k records, 30M events and a 25x speedup in 1990 and 2100.';
+  input.content.summary = 'Maintained 75% uptime, 20k records, 30M events and a 25x speedup in (1990) and (2100).';
   input.content.experience[0].bullets = ['Reached 75% and 20k again; maintained 12 tools with a 40% improvement.'];
   input.content.projects[0].bullets = ['Reached 75% again and added 88 features in 2024.'];
   input.cover.text = 'Reached 99%.';
@@ -381,22 +501,42 @@ test('does not treat substrings of profile numbers as supported quantities', () 
   assert.equal(check(input).warnings[0].code, 'number_not_in_profile');
 });
 
+test('year exemptions apply to dates but not quantities before lowercase words', () => {
+  for (const text of ['since 2021', '2019 - 2022', '(2024)', 'in 2023.', 'since 2026']) {
+    const input = request();
+    input.content.experience[0].bullets = [text];
+    assert.deepEqual(check(input).warnings, [], text);
+  }
+  for (const text of ['Completed 2026 migrations.', 'Since 2026; completed 2026 migrations.', 'Built 2026 инструментов.']) {
+    const input = request();
+    input.content.experience[0].bullets = [text];
+    const warnings = check(input).warnings;
+    assert.equal(warnings.length, 1, text);
+    assert.equal(warnings[0].code, 'number_not_in_profile');
+    assert.match(warnings[0].message, /2026/u);
+  }
+});
+
 test('ignores single digit quantities and years only within the inclusive year range', () => {
   const input = request();
-  input.content.summary = 'Built 9 tools and 5k records in 1989, 1990, 2100 and 2101 with a 2024x speedup.';
+  input.content.summary = 'Built 9 tools and 5k records in 1989, 1990, (2100) and 2101 with a 2024x speedup.';
   const { warnings } = check(input);
   assert.equal(warnings.length, 3);
   for (const [index, number] of ['1989', '2101', '2024x'].entries()) assert.ok(warnings[index].message.includes(number));
 });
 
-test('does not warn about numbers or prose language in unscanned fields', () => {
+test('ignores numbers in unscanned fields while checking bullet and cover language', () => {
   const input = request();
   input.content.experience[0].title = 'Engineer for 99 tools';
   input.content.projects[0].tech = 'Go with 88 tools';
   input.content.projects[0].bullets = ['Создаю надёжные полезные инструменты.'];
   input.content.skills[0].label = 'Languages';
   input.cover.text = 'Создаю надёжные полезные инструменты с 77 функциями.';
-  assert.deepEqual(check(input), { errors: [], warnings: [] });
+  const result = check(input);
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(result.warnings.map(({ code, path }) => [code, path]), [
+    ['wrong_language', 'projects[0].bullets[0]'], ['wrong_language', 'cover.text']
+  ]);
 });
 
 test('accepts numbers anywhere in the profile including multiline text and numeric values', () => {
@@ -412,7 +552,7 @@ test('code line count warnings cover English abbreviations and Russian wording',
     const input = request();
     input.profile.about = bullet;
     input.content.projects[0].bullets = [bullet];
-    assert.deepEqual(check(input).warnings.map(({ code, path }) => [code, path]), [['code_line_counts', 'projects[0].bullets[0]']], bullet);
+    assert.deepEqual(check(input).warnings.filter(({ code }) => code === 'code_line_counts').map(({ code, path }) => [code, path]), [['code_line_counts', 'projects[0].bullets[0]']], bullet);
   }
 });
 

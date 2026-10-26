@@ -53,6 +53,20 @@ test('the fictional example profile validates', () => {
   }
 });
 
+for (const [path, localizedMap] of [
+  ['identity.name_localized', (doc) => doc.identity.name_localized],
+  ['identity.availability', (doc) => doc.identity.availability],
+  ['skills[0].label_localized', (doc) => doc.skills[0].label_localized],
+]) {
+  test(`profile ${path} rejects every nonstring localized value`, () => {
+    for (const value of [42, { toString: 1 }, [], null, false]) {
+      const doc = structuredClone(profile);
+      localizedMap(doc).en = value;
+      expectError('profile', doc, `${path}.en`, 'type');
+    }
+  });
+}
+
 for (const [id, track] of Object.entries(tracks)) {
   test(`example track ${id} validates including its embedded resume`, () => {
     assert.deepEqual(validate(loadSchema('track'), track), []);

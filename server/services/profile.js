@@ -1,3 +1,4 @@
+import { badRequest } from '../errors.js';
 import { upgradeDocument } from '../upgrade.js';
 
 export function getProfile(db) {
@@ -29,10 +30,21 @@ export function saveProfile(db, doc, tokenId) {
   }
 }
 
-export function listRevisions(db) {
-  return db.prepare(`SELECT r.id, r.created_at, t.name AS token_name
+export function listRevisions(db, query = {}) {
+  const integer = (value, fallback, name) => {
+    if (value === undefined) return fallback;
+    if (!/^\d+$/u.test(String(value)) || !Number.isSafeInteger(Number(value))) {
+      throw badRequest(`Profile revisions query.${name} must be a non-negative integer. Use ${fallback} or omit it.`);
+    }
+    return Number(value);
+  };
+  const limit = Math.min(integer(query.limit, 200, 'limit'), 1000);
+  const offset = integer(query.offset, 0, 'offset');
+  const items = db.prepare(`SELECT r.id, r.created_at, t.name AS token_name
     FROM profile_revisions r LEFT JOIN tokens t ON t.id = r.token_id
-    ORDER BY r.id DESC LIMIT 50`).all().map((row) => ({ ...row }));
+    ORDER BY r.id DESC LIMIT ? OFFSET ?`).all(limit, offset).map((row) => ({ ...row }));
+  const { total } = db.prepare('SELECT COUNT(*) AS total FROM profile_revisions').get();
+  return { items, total };
 }
 
 export function getRevision(db, id) {

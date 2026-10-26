@@ -128,7 +128,7 @@ Built-in templates live on disk in `templates/builtin/` and are read-only. Custo
 }
 ```
 
-Every write that changes the profile adds a row to `profile_revisions`. `GET /profile/revisions` lists them. The UI can show a diff and restore one.
+Every write that changes the profile adds a row to `profile_revisions`. `GET /profile/revisions?limit=200&offset=0` lists them as a bare array for UI compatibility, with the total in the `X-Total-Count` header; the default limit is 200 and the maximum is 1000. The UI can show a diff and restore one.
 
 ### 6.2 Standard content (`schema/content.schema.json`, `schema_version: 1`)
 
@@ -262,7 +262,7 @@ Duplicates: the same normalised vacancy URL returns `409` with `details[0].exist
 
 ### 7.2 Statuses
 
-`draft` -> `needs_review` | `approved` | `skipped`; `approved` -> `sent` -> `interview` -> `offer` | `rejected`; `rejected` and `skipped` are terminal but the owner may move any record to any status. Agents may only set `draft`, `needs_review`, `skipped`. Each change appends to `application_events`. Approving requires both PDFs present and rendered from the current content.
+Agents may move `draft` -> `needs_review` | `skipped`, `needs_review` -> `draft` | `skipped`, and `skipped` -> `draft`; no other agent transitions are allowed, while a token with `approve` may move any record to any status (and also needs `write:applications` to set `draft`, `needs_review`, or `skipped`). Agents may only set `draft`, `needs_review`, `skipped`. Each change appends to `application_events`. Approving requires both PDFs present and rendered from the current content.
 
 ## 8. Template syntax (`server/render/engine.js`)
 
@@ -274,7 +274,7 @@ Logic-less, Mustache-like, HTML-escaped by default:
 - `{{labels.experience}}` section labels for the render language (fallback: `en`).
 - `{{> name}}` partials are NOT supported. Unknown paths render empty and never throw.
 
-Render context: `{ identity, lang, labels, paper, resume: <content>, cover: <content>, summary_html }` where `identity` is the profile identity with localized name and availability already resolved for `lang`, and `links` is a flat list.
+Render context: `{ identity, lang, labels, paper, resume: <content>, cover: <content> }` where `identity` is the profile identity with localized name and availability already resolved for `lang`, and `links` is a flat list.
 
 ## 9. PDF rendering (`server/render/pdf.js`)
 

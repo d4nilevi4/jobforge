@@ -34,7 +34,11 @@ export function register(router) {
   router.add('PUT', '/api/v1/profile', (c) => writeProfile(c), { scope: 'write:profile' });
   router.add('PATCH', '/api/v1/profile', (c) => writeProfile(c, true), { scope: 'write:profile' });
   router.add('GET', '/api/v1/profile/schema', () => loadSchema('profile'), { scope: 'read' });
-  router.add('GET', '/api/v1/profile/revisions', ({ db }) => listRevisions(db), { scope: 'read' });
+  router.add('GET', '/api/v1/profile/revisions', ({ db, query, res }) => {
+    const { items, total } = listRevisions(db, query);
+    res.setHeader('X-Total-Count', String(total));
+    return items;
+  }, { scope: 'read' });
   router.add('GET', '/api/v1/profile/revisions/:id', ({ db, params }) => {
     const id = Number(params.id);
     if (!/^[1-9][0-9]*$/.test(params.id) || !Number.isSafeInteger(id)) {

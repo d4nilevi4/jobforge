@@ -132,6 +132,8 @@ export function validate(schema, value, { rootPath = '' } = {}) {
         } else if (node.additionalProperties === false) {
           const allowed = Object.keys(properties).join(', ') || '(none)';
           add(target, fieldPath(path, key), 'additional_property', `Unknown field "${key}". Allowed: ${allowed}. Remove or rename this field.`);
+        } else if (node.additionalProperties && typeof node.additionalProperties === 'object') {
+          visit(node.additionalProperties, current[key], fieldPath(path, key), target, nextAncestors);
         }
       }
     }

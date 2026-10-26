@@ -6,7 +6,9 @@ import { migrate } from '../server/db.js';
 import { register } from '../server/routes/tracks.js';
 import { saveProfile } from '../server/services/profile.js';
 import { deleteTrack, getTrack, listTracks, saveTrack } from '../server/services/tracks.js';
-import { startTestServer } from './helpers.js';
+import { registerUpgrade, resetUpgrades } from '../server/upgrade.js';
+import { loadSchema } from '../server/validate.js';
+import { startApplicationServer as startTestServer } from './helpers.js';
 
 const profile = JSON.parse(readFileSync(new URL('../examples/profile.example.json', import.meta.url), 'utf8'));
 const example = JSON.parse(readFileSync(new URL('../examples/tracks.example.json', import.meta.url), 'utf8'))['unity-developer'];
@@ -107,7 +109,7 @@ test('track fact errors have base paths and failed replacements preserve the old
   const forbiddenCover = { ...example, base_cover: 'I shipped console games.' };
   const coverResult = await s.api('PUT', `${root}/cover`, forbiddenCover);
   assert.equal(coverResult.status, 422);
-  assert.ok(coverResult.body.error.details.some(({ path, code }) => path === 'base.cover.text' && code === 'do_not_claim'));
+  assert.ok(coverResult.body.error.details.some(({ path, code }) => path === 'base_cover' && code === 'do_not_claim'));
 });
 
 test('track warnings are returned without blocking a write', async (t) => {
@@ -139,6 +141,74 @@ test('track services upgrade legacy records and preserve creation time on replac
   assert.equal(deleteTrack(s.db, 'legacy'), false);
 });
 
+test('embedded content versions are filled before validation, persisted and upgraded on reads', (t) => {
+  const db = new DatabaseSync(':memory:');
+  t.after(() => db.close());
+  migrate(db);
+  saveProfile(db, profile, null);
+  const routes = new Map();
+  register({ add(method, path, handler) { routes.set(`${method} ${path}`, handler); } });
+  const put = (id, body) => routes.get(`PUT ${root}/:id`)({ db, body, params: { id } });
+  const legacy = structuredClone(example);
+  delete legacy.schema_version;
+  delete legacy.base.schema_version;
+  const before = structuredClone(legacy);
+  const saved = put('legacy', legacy);
+  assert.equal(saved.body.track.schema_version, 1);
+  assert.equal(saved.body.track.base.schema_version, 1);
+  assert.deepEqual(legacy, before);
+  assert.equal(JSON.parse(db.prepare('SELECT doc FROM tracks WHERE id = ?').get('legacy').doc).base.schema_version, 1);
+  assert.throws(() => put('invalid', { ...example, base: null }), (error) => error.status === 422 && error.details[0].path === 'base');
+  assert.throws(() => put('future', { ...example, base: { ...example.base, schema_version: 2 } }),
+    (error) => error.status === 422 && error.details[0].path === 'base.schema_version');
+
+  const versionSchema = loadSchema('track').$defs.content.properties.schema_version;
+  const previousVersion = versionSchema.const;
+  t.after(() => {
+    versionSchema.const = previousVersion;
+    resetUpgrades();
+  });
+  // A version bump ships its schema alongside the registered transform.
+  versionSchema.const = 2;
+  let upgrades = 0;
+  registerUpgrade('content', 1, (doc) => {
+    upgrades += 1;
+    const { legacy_headline: headline, ...rest } = doc;
+    return { ...rest, headline: headline ?? doc.headline, summary: 'Content was upgraded.' };
+  });
+  legacy.base.legacy_headline = legacy.base.headline;
+  delete legacy.base.headline;
+  const upgraded = put('upgraded', legacy).body.track;
+  assert.equal(upgrades, 1);
+  assert.equal(upgraded.base.schema_version, 2);
+  assert.equal(upgraded.base.headline, example.base.headline);
+  assert.equal(upgraded.base.summary, 'Content was upgraded.');
+  const stored = JSON.parse(db.prepare('SELECT doc FROM tracks WHERE id = ?').get('upgraded').doc);
+  assert.deepEqual(stored, upgraded);
+  assert.equal(Object.hasOwn(stored.base, 'legacy_headline'), false);
+  assert.equal(saveTrack(db, 'service', legacy).doc.base.schema_version, 2);
+  db.prepare('INSERT INTO tracks(id, doc) VALUES (?, ?)').run('old', JSON.stringify(legacy));
+  assert.equal(getTrack(db, 'old').doc.base.schema_version, 2);
+  assert.equal(listTracks(db).find(({ id }) => id === 'old').doc.base.summary, 'Content was upgraded.');
+  assert.equal(Object.hasOwn(JSON.parse(db.prepare('SELECT doc FROM tracks WHERE id = ?').get('old').doc).base, 'schema_version'), false);
+});
+
+test('track language warnings map resume parts under base and cover text to base_cover', (t) => {
+  const db = new DatabaseSync(':memory:');
+  t.after(() => db.close());
+  migrate(db);
+  saveProfile(db, profile, null);
+  const routes = new Map();
+  register({ add(method, path, handler) { routes.set(`${method} ${path}`, handler); } });
+  const body = structuredClone(example);
+  body.base.experience[0].bullets = ['Создаю надёжные полезные инструменты.'];
+  body.base_cover = 'Создаю надёжные полезные инструменты.';
+  const result = routes.get(`PUT ${root}/:id`)({ db, body, params: { id: 'language' } });
+  assert.deepEqual(result.body.warnings.map(({ code, path }) => [code, path]), [
+    ['wrong_language', 'base.experience[0].bullets[0]'], ['wrong_language', 'base_cover']
+  ]);
+});
+
 test('direct track handlers enforce validation, template kinds, fact checks and response statuses', (t) => {
   const db = new DatabaseSync(':memory:');
   t.after(() => db.close());
@@ -160,7 +230,7 @@ test('direct track handlers enforce validation, template kinds, fact checks and 
   const bad = structuredClone(example);
   bad.base.experience[0].company = 'Unknown Example Employer';
   assert.throws(() => call('PUT', bad), (error) => error.status === 422 && error.details.some(({ code, path }) => code === 'unknown_employer' && path === 'base.experience[0].company'));
-  assert.throws(() => call('PUT', { ...example, base_cover: 'I shipped console games.' }), (error) => error.details.some(({ code, path }) => code === 'do_not_claim' && path === 'base.cover.text'));
+  assert.throws(() => call('PUT', { ...example, base_cover: 'I shipped console games.' }), (error) => error.details.some(({ code, path }) => code === 'do_not_claim' && path === 'base_cover'));
   assert.equal(getTrack(db, 'example').doc.name, 'Updated');
   const warnings = structuredClone(example);
   warnings.base.experience[0].bullets.push('Built 987 lines of code.');

@@ -103,6 +103,23 @@ test('additional properties default to allowed and can be explicitly allowed', (
   assert.equal(validate({ additionalProperties: false }, { extra: true })[0].path, 'extra');
 });
 
+test('schema-valued additional properties validate only unnamed fields with nested paths and references', () => {
+  const schema = {
+    $defs: { text: { type: 'string' } },
+    properties: { fixed: { type: 'number' } },
+    additionalProperties: { $ref: '#/$defs/text' }
+  };
+  assert.deepEqual(validate(schema, { fixed: 1, en: 'Alex Example', ru: 'Алекс Пример' }), []);
+  assert.deepEqual(validate(schema, { fixed: 'wrong', en: { toString: 1 }, ru: null }, { rootPath: 'localized' })
+    .map(({ path, code }) => ({ path, code })), [
+    { path: 'localized.fixed', code: 'type' },
+    { path: 'localized.en', code: 'type' },
+    { path: 'localized.ru', code: 'type' }
+  ]);
+  assert.deepEqual(validate({ additionalProperties: {} }, { en: { arbitrary: true } }), []);
+  assert.equal(validate({ additionalProperties: { items: { type: 'string' } } }, { en: [1] })[0].path, 'en[0]');
+});
+
 test('special property names are checked as own properties', () => {
   const value = JSON.parse('{"__proto__": 1, "constructor": 2}');
   assert.equal(validate({ additionalProperties: false }, value).length, 2);
@@ -211,7 +228,7 @@ test('validation caps errors at 50 across a document', () => {
 });
 
 test('description and unsupported annotation keywords do not reject values', () => {
-  assert.deepEqual(validate({ description: 'For agents', propertyNames: { pattern: '^en$' }, additionalProperties: { type: 'string' } }, { arbitrary: 1 }), []);
+  assert.deepEqual(validate({ description: 'For agents', propertyNames: { pattern: '^en$' }, additionalProperties: { type: 'string' } }, { arbitrary: 'text' }), []);
 });
 
 test('validation does not change the schema or input document', () => {

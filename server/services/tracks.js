@@ -1,9 +1,25 @@
+import { ApiError } from '../errors.js';
 import { upgradeDocument } from '../upgrade.js';
+
+export function upgradeTrackDocument(doc) {
+  const upgraded = upgradeDocument('track', doc);
+  if (Object.hasOwn(upgraded, 'base')) {
+    try {
+      upgraded.base = upgradeDocument('content', upgraded.base);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        error.details = error.details.map((issue) => ({ ...issue, path: issue.path ? `base.${issue.path}` : 'base' }));
+      }
+      throw error;
+    }
+  }
+  return upgraded;
+}
 
 function fromRow(row) {
   return row ? {
     id: row.id,
-    doc: upgradeDocument('track', JSON.parse(row.doc)),
+    doc: upgradeTrackDocument(JSON.parse(row.doc)),
     updatedAt: row.updated_at
   } : null;
 }
@@ -17,7 +33,7 @@ export function getTrack(db, id) {
 }
 
 export function saveTrack(db, id, doc) {
-  const stored = upgradeDocument('track', doc);
+  const stored = upgradeTrackDocument(doc);
   const updatedAt = new Date().toISOString();
   db.prepare(`INSERT INTO tracks(id, doc, created_at, updated_at) VALUES (?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET doc = excluded.doc, updated_at = excluded.updated_at`)

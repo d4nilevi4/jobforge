@@ -2,7 +2,7 @@ import { ApiError, badRequest, notFound, validationFailed } from '../errors.js';
 import { check } from '../guard.js';
 import { getProfile } from '../services/profile.js';
 import { getTemplate, listTemplates, parseRef } from '../services/templates.js';
-import { deleteTrack, getTrack, listTracks, saveTrack } from '../services/tracks.js';
+import { deleteTrack, getTrack, listTracks, saveTrack, upgradeTrackDocument } from '../services/tracks.js';
 import { validateDocument } from '../upgrade.js';
 
 function validateId(id) {
@@ -31,7 +31,10 @@ function templateErrors(db, doc) {
 }
 
 function prefixBase(issues) {
-  return issues.map((issue) => ({ ...issue, path: issue.path ? `base.${issue.path}` : 'base' }));
+  return issues.map((issue) => ({
+    ...issue,
+    path: issue.path.startsWith('cover.') ? 'base_cover' : issue.path ? `base.${issue.path}` : 'base'
+  }));
 }
 
 export function register(router) {
@@ -54,7 +57,7 @@ export function register(router) {
     // An empty cover reference represents the optional cover omitted by a caller.
     const incoming = body && typeof body === 'object' && !Array.isArray(body) && !Object.hasOwn(body, 'cover_template')
       ? { ...body, cover_template: '' } : body;
-    const { doc, errors } = validateDocument('track', incoming);
+    const { doc, errors } = validateDocument('track', upgradeTrackDocument(incoming));
     if (errors.length) throw validationFailed('Track validation failed. Fix the fields listed in details and retry.', errors);
     const invalidTemplates = templateErrors(db, doc);
     if (invalidTemplates.length) throw validationFailed('Track template references are invalid. Choose templates of the required kind.', invalidTemplates);
