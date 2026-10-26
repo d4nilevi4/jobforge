@@ -29,3 +29,16 @@ jobs:
         env:
           CHROME_BIN: ${{ steps.chrome.outputs.chrome-path }}
           JOBFORGE_DOCKER: '1'
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t jobforge .
+      - name: Container starts, finds Chromium and renders PDFs
+        run: |
+          docker run -d --name jf -p 8787:8787 jobforge
+          for i in $(seq 1 30); do curl -fsS localhost:8787/api/v1/version && break || sleep 1; done
+          curl -fsS localhost:8787/api/v1/version | grep '"found":true'
+          docker exec jf node server/cli.js seed-demo
+          docker logs jf | grep -c "owner token" || true

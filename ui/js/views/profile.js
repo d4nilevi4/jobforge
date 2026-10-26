@@ -71,7 +71,7 @@ export async function profileView(root, ctx) {
   const editor = h('div', { className: 'profile-editor' }, panel, bar);
   const layout = h('div', { className: 'profile-layout' }, sectionNav, editor);
   const onboarding = response.empty || !response.profile ? setupAgentBox() : null;
-  root.append(h('div', { className: 'page-heading' }, h('div', {}, h('h1', {}, 'About me'), h('p', { className: 'muted' }, 'Keep your facts here. Agents use this profile to prepare honest applications.'))), onboarding, errors, warnings, tabHost, layout);
+  root.append(...[h('div', { className: 'page-heading' }, h('div', {}, h('h1', {}, 'About me'), h('p', { className: 'muted' }, 'Keep your facts here. Agents use this profile to prepare honest applications.'))), onboarding, errors, warnings, tabHost, layout].filter(Boolean)); // append(null) would print "null"
 
   function updateDirty() {
     let changes;
