@@ -115,13 +115,14 @@ Here is what an agent produced from the demo profile:
 
 ## The fact check
 
-Every application and every resume variant goes through the same check before it is stored. These block the request:
+Every application and every resume variant is checked against your profile before it is stored. These block the request:
 
 - an employer, project, school or skill that isn't in the profile, or dates that differ from it
 - something you only know from a course, mentioned without that qualifier
 - a pattern from your "do not claim" list, or one of your forbidden phrases
 - a cover letter over your word limit
-- a resume longer than its template allows
+
+Applications go one step further: the server renders the PDFs, and a resume longer than its template allows is rejected. Resume variants are only checked for facts, since nothing is printed when you save one.
 
 These are stored and shown as warnings: numbers that appear nowhere in your profile, text in the wrong language, very long bullets, and lines-of-code counts.
 
