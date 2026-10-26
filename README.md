@@ -167,8 +167,6 @@ npm test
 
 The suite starts real servers on random ports with temporary data directories. PDF tests skip themselves when there is no Chrome. Please read [AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md) before sending a change. In short: no runtime dependencies, English everywhere, and nothing that can lose someone's data.
 
-Most of the code was written by coding agents (Codex) under human direction, reviewed by a second agent, and is covered by the test suite and CI.
-
 ## Limits
 
 - One person per instance. There are no accounts, only tokens.
