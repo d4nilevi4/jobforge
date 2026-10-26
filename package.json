@@ -3,6 +3,23 @@
   "version": "0.1.0",
   "description": "Self-hosted workspace where AI agents file tailored resumes and cover letters for you to review.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/d4nilevi4/jobforge.git"
+  },
+  "homepage": "https://github.com/d4nilevi4/jobforge#readme",
+  "bugs": {
+    "url": "https://github.com/d4nilevi4/jobforge/issues"
+  },
+  "keywords": [
+    "job-search",
+    "resume",
+    "cover-letter",
+    "ai-agents",
+    "self-hosted",
+    "rest-api",
+    "pdf"
+  ],
   "type": "module",
   "private": false,
   "engines": {
