@@ -130,7 +130,7 @@ process.stderr.write('Chrome could not open the document');
 process.exitCode = 1;
 `);
   if (!fixture) return;
-  await assert.rejects(htmlToPdf('<p>Alex Example</p>', { chromeBin: fixture.executable }), (error) => {
+  await assert.rejects(htmlToPdf('<p>Alex Example</p>', { chromeBin: fixture.executable, docker: false }), (error) => {
     assert.equal(error.code, 'render_failed');
     assert.match(error.message, /Chrome could not open the document/);
     return true;
