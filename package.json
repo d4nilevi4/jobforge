@@ -1,0 +1,19 @@
+{
+  "name": "jobforge",
+  "version": "0.1.0",
+  "description": "Self-hosted workspace where AI agents file tailored resumes and cover letters for you to review.",
+  "license": "MIT",
+  "type": "module",
+  "private": false,
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node --test tests/",
+    "token": "node server/cli.js token",
+    "backup": "node server/cli.js backup",
+    "seed": "node server/cli.js seed-demo"
+  }
+}
