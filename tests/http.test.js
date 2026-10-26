@@ -250,11 +250,8 @@ test('CLI creates tokens and backups and doctor reports diagnostics', (t) => {
   assert.ok(doctor.stdout.includes(`Data directory: ${dataDir} (writable: true)`));
   assert.match(doctor.stdout, /Schema version: 1/);
   assert.match(doctor.stdout, /Chrome:/);
-  for (const command of ['export', 'import', 'seed-demo']) {
-    const result = cli(command);
-    assert.equal(result.status, 1);
-    assert.match(result.stderr, /not implemented yet/);
-  }
+  assert.equal(cli('import').status, 1, 'import needs --file');
+  assert.equal(cli('export').status, 0);
   assert.equal(cli('unknown').status, 1);
   assert.match(cli().stderr, /Usage:/);
   assert.equal(cli('token', '--name', 'example', '--preset', 'agent', '--scopes', 'read').status, 1);

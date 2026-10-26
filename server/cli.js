@@ -1,10 +1,10 @@
-import { accessSync, constants, mkdirSync } from 'node:fs';
+import { accessSync, constants, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createToken } from './auth.js';
 import { APP_ROOT, loadConfig } from './config.js';
 
-const USAGE = 'Usage: node server/cli.js token --name <name> (--preset agent|setup|owner | --scopes a,b)\n       node server/cli.js backup|doctor|export|import|seed-demo';
+const USAGE = 'Usage: node server/cli.js token --name <name> (--preset agent|setup|owner | --scopes a,b)\n       node server/cli.js backup|doctor\n       node server/cli.js export [--out file]\n       node server/cli.js import --file file\n       node server/cli.js seed-demo [--force]';
 
 function tokenOptions(args) {
   const options = {};
@@ -61,11 +61,12 @@ async function doctor(config) {
 
 async function main(args) {
   const [command, ...rest] = args;
-  if (['export', 'import', 'seed-demo'].includes(command)) {
-    console.error(`${command}: not implemented yet`);
-    return 1;
-  }
-  if (!['token', 'backup', 'doctor'].includes(command) || (command !== 'token' && rest.length)) {
+  const validArgs = command === 'token'
+    || (command === 'export' && (!rest.length || (rest.length === 2 && rest[0] === '--out' && rest[1] && !rest[1].startsWith('--'))))
+    || (command === 'import' && rest.length === 2 && rest[0] === '--file' && rest[1] && !rest[1].startsWith('--'))
+    || (command === 'seed-demo' && (!rest.length || (rest.length === 1 && rest[0] === '--force')))
+    || (['backup', 'doctor'].includes(command) && !rest.length);
+  if (!validArgs) {
     console.error(USAGE);
     return 1;
   }
@@ -76,10 +77,33 @@ async function main(args) {
   const db = openDb(config.dataDir);
   try {
     const backupDir = join(config.dataDir, 'backups');
-    migrate(db, { dir: join(APP_ROOT, 'server', 'migrations'), backupDir, log: console });
+    migrate(db, { dir: join(APP_ROOT, 'server', 'migrations'), backupDir, log: command === 'export' ? { log: (message) => console.error(message) } : console });
     if (command === 'token') {
       const token = createToken(db, options);
       console.log(`Created token "${token.name}". Save this secret; it will only be shown once: ${token.secret}`);
+    } else if (command === 'export') {
+      const { exportBundle } = await import('./services/bundle.js');
+      const json = `${JSON.stringify(exportBundle(db, { version: config.version }), null, 2)}\n`;
+      if (rest.length) writeFileSync(rest[1], json);
+      else process.stdout.write(json);
+    } else if (command === 'import' || command === 'seed-demo') {
+      const { findChrome } = await import('./render/pdf.js');
+      const options = { dataDir: config.dataDir, chrome: { bin: config.chromeBin || findChrome(), docker: config.docker } };
+      let result;
+      if (command === 'import') {
+        const { importBundle } = await import('./services/bundle.js');
+        let bundle;
+        try {
+          bundle = JSON.parse(readFileSync(rest[1], 'utf8'));
+        } catch (error) {
+          throw new Error(`Cannot read import JSON from ${rest[1]}: ${error.message}. Use --file with a complete JobForge export.`);
+        }
+        result = await importBundle(db, bundle, options);
+      } else {
+        const { seedDemo } = await import('./services/seed.js');
+        result = await seedDemo(db, { ...options, force: rest.includes('--force') });
+      }
+      console.log(JSON.stringify(result));
     } else {
       mkdirSync(backupDir, { recursive: true });
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
