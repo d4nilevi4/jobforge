@@ -150,7 +150,7 @@ export function countPages(buffer) {
   return dictionaries.filter((dictionary) => /\/Type\s*\/Page\b/.test(dictionary)).length;
 }
 
-export async function htmlToPdf(html, { chromeBin, docker = false, timeoutMs = 30000 } = {}) {
+export async function htmlToPdf(html, { chromeBin, docker = process.env.JOBFORGE_DOCKER === '1', timeoutMs = 30000 } = {}) {
   const executable = chromeBin ?? findChrome();
   if (!isFile(executable)) {
     throw renderFailed('Chrome was not found for PDF rendering. Install Google Chrome or Chromium, or set CHROME_BIN to its executable path.');
