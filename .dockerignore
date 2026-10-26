@@ -1,0 +1,16 @@
+.git
+.github
+.agents
+.codex
+.aws
+node_modules
+data
+backups
+coverage
+.env
+.env.*
+*.db
+*.db-wal
+*.db-shm
+*.log
+.DS_Store

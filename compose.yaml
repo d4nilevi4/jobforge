@@ -1,0 +1,12 @@
+services:
+  jobforge:
+    build: .
+    ports:
+      # Change 127.0.0.1 to a chosen host interface to expose it beyond this host.
+      - '127.0.0.1:8787:8787'
+    volumes:
+      - jobforge-data:/data
+    restart: unless-stopped
+
+volumes:
+  jobforge-data:

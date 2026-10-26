@@ -1,0 +1,5113 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "JobForge API",
+    "version": "0.1.0",
+    "description": "Single-person job application workspace. JSON bodies are limited to 2097152 bytes. The profile is the source of verified facts. Clients must ignore unknown response fields within API v1. Bearer tokens carry scopes described on each operation; bearer authentication is not OAuth. There is no HTTP rate limiter, batch API, or Idempotency-Key support. URL deduplication and application ids support retry reconciliation. PDF concurrency is 2 per process, with a queue bounded by 20 waiting jobs or 20 MB HTML and a 60-second wait deadline; render_failed reports busy/timeout failures."
+  },
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/version": {
+      "get": {
+        "operationId": "get_version",
+        "summary": "Get versions and Chrome availability",
+        "description": "Public; no token required.",
+        "x-scope": null,
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Version"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      }
+    },
+    "/guide": {
+      "get": {
+        "operationId": "get_guide",
+        "summary": "Read the agent guide",
+        "description": "Serves Markdown verbatim except {{BASE_URL}} is replaced by the request origin. Required scope: read.",
+        "x-scope": "read",
+        "responses": {
+          "200": {
+            "description": "Agent guide.",
+            "content": {
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "operationId": "get_openapi_json",
+        "summary": "Read this OpenAPI document",
+        "description": "Required scope: read.",
+        "x-scope": "read",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      }
+    },
+    "/tokens": {
+      "get": {
+        "operationId": "get_tokens",
+        "summary": "List token metadata, never secrets",
+        "description": "Required scope: admin.",
+        "x-scope": "admin",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Token"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      },
+      "post": {
+        "operationId": "post_tokens",
+        "summary": "Create a token; secret is returned once",
+        "description": "Required scope: admin.",
+        "x-scope": "admin",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenCreated"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      }
+    },
+    "/tokens/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "Resource identifier: positive integer for applications/tokens/revisions; slug for tracks/templates."
+        }
+      ],
+      "delete": {
+        "operationId": "delete_tokens_id_",
+        "summary": "Revoke a token",
+        "description": "Cannot revoke the last active admin token making this request. Required scope: admin.",
+        "x-scope": "admin",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      }
+    },
+    "/profile": {
+      "get": {
+        "operationId": "get_profile",
+        "summary": "Read the profile and revision metadata",
+        "description": "Required scope: read.",
+        "x-scope": "read",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      },
+      "put": {
+        "operationId": "put_profile",
+        "summary": "Replace profile and append a revision",
+        "description": "Required scope: write:profile.",
+        "x-scope": "write:profile",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileWriteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patch_profile",
+        "summary": "Merge patch the existing profile",
+        "description": "RFC 7396: objects merge, arrays replace, null deletes a member. Requires an existing profile and a valid merged document. Body is JSON, not a JSON Patch operation array. Required scope: write:profile.",
+        "x-scope": "write:profile",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileWriteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      }
+    },
+    "/profile/schema": {
+      "get": {
+        "operationId": "get_profile_schema",
+        "summary": "Read the profile JSON Schema",
+        "description": "Required scope: read.",
+        "x-scope": "read",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      }
+    },
+    "/profile/revisions": {
+      "get": {
+        "operationId": "get_profile_revisions",
+        "summary": "List paginated profile revision metadata",
+        "description": "Required scope: read.",
+        "x-scope": "read",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Revision"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Total-Count": {
+                "description": "Total profile revision count before pagination.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 200
+            },
+            "description": "Capped at 1000."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ]
+      }
+    },
+    "/profile/revisions/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "Resource identifier: positive integer for applications/tokens/revisions; slug for tracks/templates."
+        }
+      ],
+      "get": {
+        "operationId": "get_profile_revisions_id_",
+        "summary": "Read a raw profile revision document",
+        "description": "Required scope: read.",
+        "x-scope": "read",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      }
+    },
+    "/tracks": {
+      "get": {
+        "operationId": "get_tracks",
+        "summary": "List track summaries (without bases)",
+        "description": "Required scope: read.",
+        "x-scope": "read",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TrackSummary"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      }
+    },
+    "/tracks/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "Resource identifier: positive integer for applications/tokens/revisions; slug for tracks/templates."
+        }
+      ],
+      "get": {
+        "operationId": "get_tracks_id_",
+        "summary": "Read a full wrapped track",
+        "description": "Required scope: read.",
+        "x-scope": "read",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      },
+      "put": {
+        "operationId": "put_tracks_id_",
+        "summary": "Create or replace a track; guard its base",
+        "description": "Track id matches ^[a-z0-9][a-z0-9-]{0,62}$. Requires a profile; cover_template defaults to an empty string. Required scope: write:tracks.",
+        "x-scope": "write:tracks",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "New track created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "delete_tracks_id_",
+        "summary": "Delete a track",
+        "description": "Required scope: write:tracks.",
+        "x-scope": "write:tracks",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      }
+    },
+    "/templates": {
+      "get": {
+        "operationId": "get_templates",
+        "summary": "List current built-in and custom templates",
+        "description": "Required scope: read.",
+        "x-scope": "read",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "resume",
+                "cover"
+              ]
+            },
+            "description": ""
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TemplateSummary"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      }
+    },
+    "/templates/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "Resource identifier: positive integer for applications/tokens/revisions; slug for tracks/templates."
+        }
+      ],
+      "get": {
+        "operationId": "get_templates_id_",
+        "summary": "Read template metadata, source, sample, and content schema",
+        "description": "Required scope: read.",
+        "x-scope": "read",
+        "parameters": [
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Available stored version; omit to use the current version. Built-ins retain only their on-disk version."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Template"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      },
+      "put": {
+        "operationId": "put_templates_id_",
+        "summary": "Create a custom template or append its next version",
+        "description": "Built-ins are read-only. Custom id matches ^custom-[a-z0-9][a-z0-9-]{0,56}$. Server overrides meta.id and meta.version; previous custom versions remain stored. Required scope: write:templates.",
+        "x-scope": "write:templates",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Template"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "New template created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Template"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "delete_templates_id_",
+        "summary": "Delete an unreferenced custom template",
+        "description": "Refused for built-ins and when tracks or applications reference the template. Required scope: write:templates.",
+        "x-scope": "write:templates",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      }
+    },
+    "/templates/{id}/fork": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "Resource identifier: positive integer for applications/tokens/revisions; slug for tracks/templates."
+        }
+      ],
+      "post": {
+        "operationId": "post_templates_id_fork",
+        "summary": "Fork an available template version to a custom id",
+        "description": "Send {} to generate a free id. Required scope: write:templates.",
+        "x-scope": "write:templates",
+        "parameters": [
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Available stored version; omit to use the current version. Built-ins retain only their on-disk version."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^custom-[a-z0-9][a-z0-9-]{0,56}$"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Template"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      }
+    },
+    "/templates/{id}/preview": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "Resource identifier: positive integer for applications/tokens/revisions; slug for tracks/templates."
+        }
+      ],
+      "post": {
+        "operationId": "post_templates_id_preview",
+        "summary": "Preview schema-validated content; no fact guard",
+        "description": "Send {} for sample content. Profile identity is used if present. Page overflow is reported in headers, not rejected. Required scope: read.",
+        "x-scope": "read",
+        "parameters": [
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Available stored version; omit to use the current version. Built-ins retain only their on-disk version."
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "html returns HTML; other/omitted values return PDF."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PDF or HTML preview.",
+            "headers": {
+              "X-Pages": {
+                "description": "PDF page count.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Page-Overflow": {
+                "description": "Present as true when a PDF exceeds max_pages.",
+                "schema": {
+                  "const": "true"
+                }
+              }
+            },
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      }
+    },
+    "/check": {
+      "post": {
+        "operationId": "post_check",
+        "summary": "Dry-run an application without storing it",
+        "description": "Requires a profile, including for skip. Skip discards supplied resume/cover. Duplicate is reported, not rejected. No persistence. Required scope: write:applications.",
+        "x-scope": "write:applications",
+        "parameters": [
+          {
+            "name": "render",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exactly 0 skips PDFs and omits pages; otherwise render and enforce page limits."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      }
+    },
+    "/applications": {
+      "post": {
+        "operationId": "post_applications",
+        "summary": "Prepare, render, and file one application",
+        "description": "One vacancy per record. Non-skip requires resume; cover is optional at filing. Skip discards documents and sets status skipped; otherwise status draft. Returns 409 with error.details[0].existing_id for a normalized URL duplicate. The pipeline overrides document languages with vacancy.language, then resume language, cover language, or en. Guard errors and page overflow store nothing. Warnings do not block. Required scope: write:applications.",
+        "x-scope": "write:applications",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Application"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      },
+      "get": {
+        "operationId": "get_applications",
+        "summary": "List filtered applications with status counts",
+        "description": "Counts use all filters except status. Sorted by updated_at descending, then id descending. Required scope: read.",
+        "x-scope": "read",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated statuses."
+          },
+          {
+            "name": "track",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": ""
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Case-insensitive substring of title/company/source/notes."
+          },
+          {
+            "name": "company",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Normalized exact company match."
+          },
+          {
+            "name": "verdict",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "apply",
+                "maybe",
+                "skip"
+              ]
+            },
+            "description": ""
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 50
+            },
+            "description": "Capped at 200."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            },
+            "description": ""
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationList"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      }
+    },
+    "/applications/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "Resource identifier: positive integer for applications/tokens/revisions; slug for tracks/templates."
+        }
+      ],
+      "get": {
+        "operationId": "get_applications_id_",
+        "summary": "Read an application, file URLs, events, and same-company records",
+        "description": "Required scope: read.",
+        "x-scope": "read",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Application"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      },
+      "put": {
+        "operationId": "put_applications_id_",
+        "summary": "Fully replace an editable application request",
+        "description": "Only draft or needs_review can be edited. Full replacement, not merge patch. Skip changes status to skipped; otherwise preserves the current editable status. Required scope: write:applications.",
+        "x-scope": "write:applications",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Application"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "delete_applications_id_",
+        "summary": "Delete an application, history, and derived files",
+        "description": "Required scope: approve.",
+        "x-scope": "approve",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      }
+    },
+    "/applications/{id}/status": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "Resource identifier: positive integer for applications/tokens/revisions; slug for tracks/templates."
+        }
+      ],
+      "post": {
+        "operationId": "post_applications_id_status",
+        "summary": "Change status and append an event",
+        "description": "Authentication is enforced in the handler. Targets draft/needs_review/skipped require write:applications; other targets require approve. Without approve, transitions are draft -> needs_review|skipped, needs_review -> draft|skipped, skipped -> draft. With approve, any source/target is allowed subject to target scope and document presence: approved/sent reject skip and require both PDFs for document-bearing records. The server does not send applications. Required scope: write:applications or approve (depends on target).",
+        "x-scope": "write:applications or approve (depends on target)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatusInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Application"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      }
+    },
+    "/applications/{id}/rerender": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "Resource identifier: positive integer for applications/tokens/revisions; slug for tracks/templates."
+        }
+      ],
+      "post": {
+        "operationId": "post_applications_id_rerender",
+        "summary": "Rerender with current or explicitly requested template version",
+        "description": "Uses current profile identity. Refused for sent/interview/offer/rejected; page limits still apply. Required scope: write:applications.",
+        "x-scope": "write:applications",
+        "parameters": [
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Available stored version; omit to use the current version. Built-ins retain only their on-disk version."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Application"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      }
+    },
+    "/applications/{id}/files/{name}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "Resource identifier: positive integer for applications/tokens/revisions; slug for tracks/templates."
+        },
+        {
+          "name": "name",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "resume.pdf",
+              "cover.pdf",
+              "cover.txt",
+              "vacancy.md",
+              "resume.html"
+            ]
+          },
+          "description": "Application file name."
+        }
+      ],
+      "get": {
+        "operationId": "get_applications_id_files_name_",
+        "summary": "Read a derived PDF, cover text, vacancy Markdown, or resume HTML",
+        "description": "Required scope: read.",
+        "x-scope": "read",
+        "parameters": [
+          {
+            "name": "dl",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exactly 1 adds an attachment filename for PDFs."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Requested file; documents absent on skip return 404.",
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Present for PDF dl=1 downloads."
+              }
+            },
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      }
+    },
+    "/export": {
+      "get": {
+        "operationId": "get_export",
+        "summary": "Export a version-1 portability bundle",
+        "description": "Includes revisions, tracks, custom template versions, application rows and events; excludes tokens, built-in source, and derived files. Required scope: admin.",
+        "x-scope": "admin",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Bundle"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      }
+    },
+    "/import": {
+      "post": {
+        "operationId": "post_import",
+        "summary": "Import into an empty data store, then attempt PDF regeneration",
+        "description": "Token rows are allowed in an otherwise empty target. Rows restore transactionally; later PDF regeneration failures appear in render_errors without undoing the imported data. Body limit is 2 MB; use the CLI for larger bundles. Required scope: admin.",
+        "x-scope": "admin",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Bundle"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error405"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "JobForge secret token. agent: read, write:applications, write:tracks, write:templates. setup adds write:profile. owner has all seven scopes."
+      }
+    },
+    "schemas": {
+      "Profile": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": [
+          "schema_version",
+          "identity",
+          "experience",
+          "skills"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "integer",
+            "const": 1
+          },
+          "identity": {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "name_localized": {
+                "$ref": "#/components/schemas/Profile/$defs/localized"
+              },
+              "email": {
+                "type": "string"
+              },
+              "phone": {
+                "type": "string"
+              },
+              "location": {
+                "type": "string"
+              },
+              "links": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "label",
+                    "url"
+                  ],
+                  "properties": {
+                    "label": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "availability": {
+                "$ref": "#/components/schemas/Profile/$defs/localized"
+              }
+            },
+            "additionalProperties": false
+          },
+          "about": {
+            "type": "string"
+          },
+          "experience": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Profile/$defs/experience"
+            }
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Profile/$defs/project"
+            }
+          },
+          "education": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Profile/$defs/education"
+            }
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "key",
+                "label",
+                "items"
+              ],
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9_-]+$"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "label_localized": {
+                  "$ref": "#/components/schemas/Profile/$defs/localized"
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "familiar": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "item",
+                "qualifier"
+              ],
+              "properties": {
+                "item": {
+                  "type": "string"
+                },
+                "qualifier": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "level"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "level": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "do_not_claim": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "text"
+              ],
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "patterns": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "rules": {
+            "type": "object",
+            "properties": {
+              "forbid_patterns": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "pattern",
+                    "message"
+                  ],
+                  "properties": {
+                    "pattern": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "cover_max_words": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "notes": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "additionalProperties": false,
+        "$defs": {
+          "localized": {
+            "type": "object",
+            "description": "String values keyed by language codes matching ^[a-z]{2}(-[A-Za-z]+)?$. The minimal validator does not enforce language keys or schema-valued additionalProperties.",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "experience": {
+            "type": "object",
+            "required": [
+              "company",
+              "title",
+              "dates",
+              "bullets"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "company": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "dates": {
+                "type": "string"
+              },
+              "location": {
+                "type": "string"
+              },
+              "bullets": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "project": {
+            "type": "object",
+            "required": [
+              "title",
+              "bullets"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "tech": {
+                "type": "string"
+              },
+              "link": {
+                "type": "string"
+              },
+              "link_label": {
+                "type": "string"
+              },
+              "bullets": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "education": {
+            "type": "object",
+            "required": [
+              "institution",
+              "degree",
+              "years"
+            ],
+            "properties": {
+              "institution": {
+                "type": "string"
+              },
+              "degree": {
+                "type": "string"
+              },
+              "years": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Track": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": [
+          "schema_version",
+          "name",
+          "when_to_use",
+          "language",
+          "resume_template",
+          "cover_template",
+          "base"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "integer",
+            "const": 1
+          },
+          "name": {
+            "type": "string"
+          },
+          "when_to_use": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "resume_template": {
+            "type": "string"
+          },
+          "cover_template": {
+            "type": "string"
+          },
+          "base": {
+            "$ref": "#/components/schemas/Track/$defs/content"
+          },
+          "base_cover": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "$defs": {
+          "experience": {
+            "type": "object",
+            "required": [
+              "company",
+              "title",
+              "dates",
+              "bullets"
+            ],
+            "properties": {
+              "company": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "dates": {
+                "type": "string"
+              },
+              "location": {
+                "type": "string"
+              },
+              "bullets": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "project": {
+            "type": "object",
+            "required": [
+              "title",
+              "bullets"
+            ],
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "tech": {
+                "type": "string"
+              },
+              "link": {
+                "type": "string"
+              },
+              "link_label": {
+                "type": "string"
+              },
+              "bullets": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "education": {
+            "type": "object",
+            "required": [
+              "institution",
+              "degree",
+              "years"
+            ],
+            "properties": {
+              "institution": {
+                "type": "string"
+              },
+              "degree": {
+                "type": "string"
+              },
+              "years": {
+                "type": "string"
+              }
+            }
+          },
+          "skill": {
+            "type": "object",
+            "required": [
+              "label",
+              "items"
+            ],
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "content": {
+            "type": "object",
+            "required": [
+              "headline",
+              "experience",
+              "skills"
+            ],
+            "properties": {
+              "schema_version": {
+                "type": "integer",
+                "const": 1
+              },
+              "language": {
+                "type": "string"
+              },
+              "headline": {
+                "type": "string"
+              },
+              "summary": {
+                "type": "string"
+              },
+              "experience": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Track/$defs/experience"
+                }
+              },
+              "projects": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Track/$defs/project"
+                }
+              },
+              "skills": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Track/$defs/skill"
+                }
+              },
+              "education": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Track/$defs/education"
+                }
+              },
+              "extra": {
+                "type": "object"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "Content": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": [
+          "headline",
+          "experience",
+          "skills"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "integer",
+            "const": 1
+          },
+          "language": {
+            "type": "string"
+          },
+          "headline": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "experience": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Content/$defs/experience"
+            }
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Content/$defs/project"
+            }
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Content/$defs/skill"
+            }
+          },
+          "education": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Content/$defs/education"
+            }
+          },
+          "extra": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "$defs": {
+          "experience": {
+            "type": "object",
+            "required": [
+              "company",
+              "title",
+              "dates",
+              "bullets"
+            ],
+            "properties": {
+              "company": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "dates": {
+                "type": "string"
+              },
+              "location": {
+                "type": "string"
+              },
+              "bullets": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "project": {
+            "type": "object",
+            "required": [
+              "title",
+              "bullets"
+            ],
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "tech": {
+                "type": "string"
+              },
+              "link": {
+                "type": "string"
+              },
+              "link_label": {
+                "type": "string"
+              },
+              "bullets": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "education": {
+            "type": "object",
+            "required": [
+              "institution",
+              "degree",
+              "years"
+            ],
+            "properties": {
+              "institution": {
+                "type": "string"
+              },
+              "degree": {
+                "type": "string"
+              },
+              "years": {
+                "type": "string"
+              }
+            }
+          },
+          "skill": {
+            "type": "object",
+            "required": [
+              "label",
+              "items"
+            ],
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Cover": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "integer",
+            "const": 1
+          },
+          "language": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      },
+      "ApplicationInput": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": [
+          "vacancy"
+        ],
+        "properties": {
+          "vacancy": {
+            "type": "object",
+            "required": [
+              "text"
+            ],
+            "properties": {
+              "url": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "company": {
+                "type": "string"
+              },
+              "location": {
+                "type": "string"
+              },
+              "language": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              }
+            }
+          },
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "apply",
+              "maybe",
+              "skip"
+            ]
+          },
+          "score": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "track_id": {
+            "type": "string"
+          },
+          "resume": {
+            "type": "object",
+            "required": [
+              "template",
+              "content"
+            ],
+            "properties": {
+              "template": {
+                "type": "string"
+              },
+              "content": {
+                "$ref": "#/components/schemas/ApplicationInput/$defs/content"
+              }
+            }
+          },
+          "cover": {
+            "type": "object",
+            "required": [
+              "template",
+              "content"
+            ],
+            "properties": {
+              "template": {
+                "type": "string"
+              },
+              "content": {
+                "$ref": "#/components/schemas/ApplicationInput/$defs/cover"
+              }
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "anyOf": [
+          {
+            "required": [
+              "resume"
+            ]
+          },
+          {
+            "required": [
+              "verdict"
+            ],
+            "properties": {
+              "verdict": {
+                "const": "skip"
+              }
+            }
+          }
+        ],
+        "$defs": {
+          "experience": {
+            "type": "object",
+            "required": [
+              "company",
+              "title",
+              "dates",
+              "bullets"
+            ],
+            "properties": {
+              "company": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "dates": {
+                "type": "string"
+              },
+              "location": {
+                "type": "string"
+              },
+              "bullets": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "project": {
+            "type": "object",
+            "required": [
+              "title",
+              "bullets"
+            ],
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "tech": {
+                "type": "string"
+              },
+              "link": {
+                "type": "string"
+              },
+              "link_label": {
+                "type": "string"
+              },
+              "bullets": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "education": {
+            "type": "object",
+            "required": [
+              "institution",
+              "degree",
+              "years"
+            ],
+            "properties": {
+              "institution": {
+                "type": "string"
+              },
+              "degree": {
+                "type": "string"
+              },
+              "years": {
+                "type": "string"
+              }
+            }
+          },
+          "skill": {
+            "type": "object",
+            "required": [
+              "label",
+              "items"
+            ],
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "content": {
+            "type": "object",
+            "required": [
+              "headline",
+              "experience",
+              "skills"
+            ],
+            "properties": {
+              "schema_version": {
+                "type": "integer",
+                "const": 1
+              },
+              "language": {
+                "type": "string"
+              },
+              "headline": {
+                "type": "string"
+              },
+              "summary": {
+                "type": "string"
+              },
+              "experience": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ApplicationInput/$defs/experience"
+                }
+              },
+              "projects": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ApplicationInput/$defs/project"
+                }
+              },
+              "skills": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ApplicationInput/$defs/skill"
+                }
+              },
+              "education": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ApplicationInput/$defs/education"
+                }
+              },
+              "extra": {
+                "type": "object"
+              }
+            },
+            "additionalProperties": false
+          },
+          "cover": {
+            "type": "object",
+            "required": [
+              "text"
+            ],
+            "properties": {
+              "schema_version": {
+                "type": "integer",
+                "const": 1
+              },
+              "language": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "ProfileInput": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": [
+          "identity",
+          "experience",
+          "skills"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "integer",
+            "const": 1,
+            "default": 1
+          },
+          "identity": {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "name_localized": {
+                "$ref": "#/components/schemas/Profile/$defs/localized"
+              },
+              "email": {
+                "type": "string"
+              },
+              "phone": {
+                "type": "string"
+              },
+              "location": {
+                "type": "string"
+              },
+              "links": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "label",
+                    "url"
+                  ],
+                  "properties": {
+                    "label": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "availability": {
+                "$ref": "#/components/schemas/Profile/$defs/localized"
+              }
+            },
+            "additionalProperties": false
+          },
+          "about": {
+            "type": "string"
+          },
+          "experience": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Profile/$defs/experience"
+            }
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Profile/$defs/project"
+            }
+          },
+          "education": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Profile/$defs/education"
+            }
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "key",
+                "label",
+                "items"
+              ],
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9_-]+$"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "label_localized": {
+                  "$ref": "#/components/schemas/Profile/$defs/localized"
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "familiar": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "item",
+                "qualifier"
+              ],
+              "properties": {
+                "item": {
+                  "type": "string"
+                },
+                "qualifier": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "level"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "level": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "do_not_claim": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "text"
+              ],
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "patterns": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "rules": {
+            "type": "object",
+            "properties": {
+              "forbid_patterns": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "pattern",
+                    "message"
+                  ],
+                  "properties": {
+                    "pattern": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "cover_max_words": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "notes": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "additionalProperties": false,
+        "$defs": {
+          "localized": {
+            "type": "object",
+            "description": "String values keyed by language codes matching ^[a-z]{2}(-[A-Za-z]+)?$. The minimal validator does not enforce language keys or schema-valued additionalProperties.",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "experience": {
+            "type": "object",
+            "required": [
+              "company",
+              "title",
+              "dates",
+              "bullets"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "company": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "dates": {
+                "type": "string"
+              },
+              "location": {
+                "type": "string"
+              },
+              "bullets": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "project": {
+            "type": "object",
+            "required": [
+              "title",
+              "bullets"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "tech": {
+                "type": "string"
+              },
+              "link": {
+                "type": "string"
+              },
+              "link_label": {
+                "type": "string"
+              },
+              "bullets": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "education": {
+            "type": "object",
+            "required": [
+              "institution",
+              "degree",
+              "years"
+            ],
+            "properties": {
+              "institution": {
+                "type": "string"
+              },
+              "degree": {
+                "type": "string"
+              },
+              "years": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "TrackInput": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": [
+          "name",
+          "when_to_use",
+          "language",
+          "resume_template",
+          "base"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "integer",
+            "const": 1,
+            "default": 1
+          },
+          "name": {
+            "type": "string"
+          },
+          "when_to_use": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "resume_template": {
+            "type": "string"
+          },
+          "cover_template": {
+            "type": "string",
+            "default": ""
+          },
+          "base": {
+            "$ref": "#/components/schemas/Track/$defs/content"
+          },
+          "base_cover": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "$defs": {
+          "experience": {
+            "type": "object",
+            "required": [
+              "company",
+              "title",
+              "dates",
+              "bullets"
+            ],
+            "properties": {
+              "company": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "dates": {
+                "type": "string"
+              },
+              "location": {
+                "type": "string"
+              },
+              "bullets": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "project": {
+            "type": "object",
+            "required": [
+              "title",
+              "bullets"
+            ],
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "tech": {
+                "type": "string"
+              },
+              "link": {
+                "type": "string"
+              },
+              "link_label": {
+                "type": "string"
+              },
+              "bullets": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "education": {
+            "type": "object",
+            "required": [
+              "institution",
+              "degree",
+              "years"
+            ],
+            "properties": {
+              "institution": {
+                "type": "string"
+              },
+              "degree": {
+                "type": "string"
+              },
+              "years": {
+                "type": "string"
+              }
+            }
+          },
+          "skill": {
+            "type": "object",
+            "required": [
+              "label",
+              "items"
+            ],
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "content": {
+            "type": "object",
+            "required": [
+              "headline",
+              "experience",
+              "skills"
+            ],
+            "properties": {
+              "schema_version": {
+                "type": "integer",
+                "const": 1
+              },
+              "language": {
+                "type": "string"
+              },
+              "headline": {
+                "type": "string"
+              },
+              "summary": {
+                "type": "string"
+              },
+              "experience": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Track/$defs/experience"
+                }
+              },
+              "projects": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Track/$defs/project"
+                }
+              },
+              "skills": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Track/$defs/skill"
+                }
+              },
+              "education": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Track/$defs/education"
+                }
+              },
+              "extra": {
+                "type": "object"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "Issue": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "existing_id": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          },
+          "id": {
+            "type": [
+              "integer",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "path",
+          "code",
+          "message"
+        ]
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Issue"
+                }
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "details"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "Ok": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "const": true
+          }
+        },
+        "required": [
+          "ok"
+        ]
+      },
+      "Version": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "const": "jobforge"
+          },
+          "version": {
+            "type": "string"
+          },
+          "api": {
+            "const": "v1"
+          },
+          "schema_version": {
+            "type": "integer"
+          },
+          "chrome": {
+            "type": "object",
+            "properties": {
+              "found": {
+                "type": "boolean"
+              },
+              "path": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "found",
+              "path",
+              "version"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "version",
+          "api",
+          "schema_version",
+          "chrome"
+        ]
+      },
+      "ProfileResponse": {
+        "type": "object",
+        "properties": {
+          "profile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Profile"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "empty": {
+            "type": "boolean"
+          },
+          "revision_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "profile",
+          "empty",
+          "revision_id",
+          "updated_at"
+        ]
+      },
+      "ProfileWriteResponse": {
+        "type": "object",
+        "properties": {
+          "profile": {
+            "$ref": "#/components/schemas/Profile"
+          },
+          "revision_id": {
+            "type": "integer"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "tracks_failing": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "profile",
+          "revision_id",
+          "updated_at",
+          "tracks_failing"
+        ]
+      },
+      "Revision": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "token_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "created_at",
+          "token_name"
+        ]
+      },
+      "TrackSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "when_to_use": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "resume_template": {
+            "type": "string"
+          },
+          "cover_template": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "when_to_use",
+          "language",
+          "resume_template",
+          "cover_template",
+          "updated_at"
+        ]
+      },
+      "TrackResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "track": {
+            "$ref": "#/components/schemas/Track"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Issue"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "track",
+          "updated_at"
+        ]
+      },
+      "Scope": {
+        "type": "string",
+        "enum": [
+          "read",
+          "write:applications",
+          "write:tracks",
+          "write:templates",
+          "write:profile",
+          "approve",
+          "admin"
+        ]
+      },
+      "Token": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Scope"
+            }
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "last_used_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revoked_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "scopes",
+          "created_at",
+          "last_used_at",
+          "revoked_at"
+        ]
+      },
+      "TokenInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "preset": {
+            "enum": [
+              "agent",
+              "setup",
+              "owner"
+            ]
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Scope"
+            }
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "oneOf": [
+          {
+            "required": [
+              "preset"
+            ],
+            "not": {
+              "required": [
+                "scopes"
+              ]
+            }
+          },
+          {
+            "required": [
+              "scopes"
+            ],
+            "not": {
+              "required": [
+                "preset"
+              ]
+            }
+          }
+        ],
+        "description": "Name must contain non-whitespace text. Supply exactly one of preset or scopes."
+      },
+      "TokenCreated": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Scope"
+            }
+          },
+          "secret": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "scopes",
+          "secret"
+        ]
+      },
+      "TemplateMeta": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "resume",
+              "cover"
+            ]
+          },
+          "version": {
+            "type": "integer"
+          },
+          "description": {
+            "type": "string"
+          },
+          "paper": {
+            "enum": [
+              "letter",
+              "a4"
+            ]
+          },
+          "max_pages": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "labels": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "version",
+          "description",
+          "paper",
+          "max_pages",
+          "languages",
+          "labels"
+        ]
+      },
+      "TemplateSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "resume",
+              "cover"
+            ]
+          },
+          "builtin": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "description": {
+            "type": "string"
+          },
+          "paper": {
+            "enum": [
+              "letter",
+              "a4"
+            ]
+          },
+          "max_pages": {
+            "type": "integer"
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "builtin",
+          "version",
+          "description",
+          "paper",
+          "max_pages",
+          "languages"
+        ]
+      },
+      "TemplateSample": {
+        "type": "object",
+        "properties": {
+          "profile_identity": {
+            "$ref": "#/components/schemas/Profile/properties/identity"
+          },
+          "resume": {
+            "$ref": "#/components/schemas/Content"
+          },
+          "cover": {
+            "$ref": "#/components/schemas/Cover"
+          }
+        },
+        "required": [
+          "profile_identity",
+          "resume",
+          "cover"
+        ]
+      },
+      "Template": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "builtin": {
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "resume",
+              "cover"
+            ]
+          },
+          "version": {
+            "type": "integer"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/TemplateMeta"
+          },
+          "source": {
+            "type": "string"
+          },
+          "sample": {
+            "$ref": "#/components/schemas/TemplateSample"
+          },
+          "content_schema": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "builtin",
+          "kind",
+          "version",
+          "meta",
+          "source",
+          "sample",
+          "content_schema"
+        ]
+      },
+      "TemplateInput": {
+        "type": "object",
+        "properties": {
+          "meta": {
+            "$ref": "#/components/schemas/TemplateMetaInput"
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "meta",
+          "source"
+        ]
+      },
+      "TemplateMetaInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "resume",
+              "cover"
+            ]
+          },
+          "version": {
+            "type": "integer"
+          },
+          "description": {
+            "type": "string"
+          },
+          "paper": {
+            "enum": [
+              "letter",
+              "a4"
+            ]
+          },
+          "max_pages": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "labels": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "description",
+          "paper",
+          "max_pages",
+          "languages",
+          "labels"
+        ]
+      },
+      "PreviewInput": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Content"
+              },
+              {
+                "$ref": "#/components/schemas/Cover"
+              }
+            ]
+          },
+          "lang": {
+            "type": "string",
+            "minLength": 1
+          },
+          "cover": {
+            "$ref": "#/components/schemas/Cover"
+          }
+        }
+      },
+      "Pages": {
+        "type": "object",
+        "properties": {
+          "resume": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "cover": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
+      },
+      "SameCompany": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "status",
+          "updated_at"
+        ]
+      },
+      "Duplicate": {
+        "type": "object",
+        "properties": {
+          "existing_id": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "existing_id",
+          "status"
+        ]
+      },
+      "CheckResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "const": true
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Issue"
+            }
+          },
+          "pages": {
+            "$ref": "#/components/schemas/Pages"
+          },
+          "duplicate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Duplicate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "same_company": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SameCompany"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "warnings",
+          "duplicate",
+          "same_company"
+        ]
+      },
+      "Status": {
+        "enum": [
+          "draft",
+          "needs_review",
+          "approved",
+          "sent",
+          "interview",
+          "offer",
+          "rejected",
+          "skipped"
+        ]
+      },
+      "Event": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "application_id": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "token_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "application_id",
+          "status",
+          "note",
+          "token_id",
+          "at"
+        ]
+      },
+      "StatusInput": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "Vacancy": {
+        "$ref": "#/components/schemas/ApplicationInput/properties/vacancy"
+      },
+      "ResumeDocument": {
+        "$ref": "#/components/schemas/ApplicationInput/properties/resume"
+      },
+      "CoverDocument": {
+        "$ref": "#/components/schemas/ApplicationInput/properties/cover"
+      },
+      "ApplicationRow": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          },
+          "verdict": {
+            "enum": [
+              "apply",
+              "maybe",
+              "skip"
+            ]
+          },
+          "score": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "vacancy_url": {
+            "type": "string"
+          },
+          "vacancy_url_norm": {
+            "type": "string"
+          },
+          "vacancy_source": {
+            "type": "string"
+          },
+          "company": {
+            "type": "string"
+          },
+          "company_norm": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "vacancy_text": {
+            "type": "string"
+          },
+          "track_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resume_template": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cover_template": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resume_content": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Content"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cover_content": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Cover"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "notes": {
+            "type": "string"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Issue"
+            }
+          },
+          "pages_resume": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "pages_cover": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "profile_revision_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "created_by_token_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "verdict",
+          "score",
+          "vacancy_url",
+          "vacancy_url_norm",
+          "vacancy_source",
+          "company",
+          "company_norm",
+          "title",
+          "location",
+          "language",
+          "vacancy_text",
+          "track_id",
+          "resume_template",
+          "cover_template",
+          "resume_content",
+          "cover_content",
+          "notes",
+          "warnings",
+          "pages_resume",
+          "pages_cover",
+          "profile_revision_id",
+          "created_at",
+          "updated_at",
+          "created_by_token_id"
+        ]
+      },
+      "Application": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          },
+          "verdict": {
+            "enum": [
+              "apply",
+              "maybe",
+              "skip"
+            ]
+          },
+          "score": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "vacancy_url": {
+            "type": "string"
+          },
+          "vacancy_url_norm": {
+            "type": "string"
+          },
+          "vacancy_source": {
+            "type": "string"
+          },
+          "company": {
+            "type": "string"
+          },
+          "company_norm": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "vacancy_text": {
+            "type": "string"
+          },
+          "track_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resume_template": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cover_template": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resume_content": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Content"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cover_content": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Cover"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "notes": {
+            "type": "string"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Issue"
+            }
+          },
+          "pages_resume": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "pages_cover": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "profile_revision_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "created_by_token_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "vacancy": {
+            "$ref": "#/components/schemas/Vacancy"
+          },
+          "resume": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResumeDocument"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cover": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CoverDocument"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pages": {
+            "$ref": "#/components/schemas/Pages"
+          },
+          "track": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Event"
+            }
+          },
+          "same_company": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SameCompany"
+            }
+          },
+          "files": {
+            "type": "object",
+            "properties": {
+              "resume_pdf": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "cover_pdf": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "cover_txt": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "vacancy_md": {
+                "type": "string"
+              },
+              "resume_html": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "resume_pdf",
+              "cover_pdf",
+              "cover_txt",
+              "vacancy_md",
+              "resume_html"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "verdict",
+          "score",
+          "vacancy_url",
+          "vacancy_url_norm",
+          "vacancy_source",
+          "company",
+          "company_norm",
+          "title",
+          "location",
+          "language",
+          "vacancy_text",
+          "track_id",
+          "resume_template",
+          "cover_template",
+          "resume_content",
+          "cover_content",
+          "notes",
+          "warnings",
+          "pages_resume",
+          "pages_cover",
+          "profile_revision_id",
+          "created_at",
+          "updated_at",
+          "created_by_token_id",
+          "vacancy",
+          "resume",
+          "cover",
+          "pages",
+          "track",
+          "events",
+          "same_company",
+          "files"
+        ]
+      },
+      "ApplicationSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          },
+          "verdict": {
+            "enum": [
+              "apply",
+              "maybe",
+              "skip"
+            ]
+          },
+          "score": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "title": {
+            "type": "string"
+          },
+          "company": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "vacancy_url": {
+            "type": "string"
+          },
+          "vacancy_source": {
+            "type": "string"
+          },
+          "track_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resume_template": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cover_template": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "pages": {
+            "$ref": "#/components/schemas/Pages"
+          },
+          "warnings_count": {
+            "type": "integer"
+          },
+          "has_resume": {
+            "type": "boolean"
+          },
+          "has_cover": {
+            "type": "boolean"
+          },
+          "same_company_count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "verdict",
+          "score",
+          "title",
+          "company",
+          "location",
+          "language",
+          "vacancy_url",
+          "vacancy_source",
+          "track_id",
+          "resume_template",
+          "cover_template",
+          "created_at",
+          "updated_at",
+          "pages",
+          "warnings_count",
+          "has_resume",
+          "has_cover",
+          "same_company_count"
+        ]
+      },
+      "ApplicationList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApplicationSummary"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "counts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "counts"
+        ]
+      },
+      "ProfileRevisionRow": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "doc": {
+            "$ref": "#/components/schemas/Profile"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "token_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "doc",
+          "created_at",
+          "token_id"
+        ]
+      },
+      "ExportedTemplate": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "resume",
+              "cover"
+            ]
+          },
+          "current_version": {
+            "type": "integer"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "versions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "integer"
+                },
+                "meta": {
+                  "$ref": "#/components/schemas/TemplateMeta"
+                },
+                "source": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "version",
+                "meta",
+                "source",
+                "created_at"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "current_version",
+          "created_at",
+          "updated_at",
+          "versions"
+        ]
+      },
+      "Bundle": {
+        "type": "object",
+        "properties": {
+          "bundle_version": {
+            "const": 1
+          },
+          "exported_at": {
+            "type": "string"
+          },
+          "app_version": {
+            "type": "string"
+          },
+          "schema_version": {
+            "type": "integer"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Profile"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "profile_revisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileRevisionRow"
+            }
+          },
+          "tracks": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Track"
+            }
+          },
+          "templates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportedTemplate"
+            }
+          },
+          "applications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApplicationRow"
+            }
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Event"
+            }
+          }
+        },
+        "required": [
+          "bundle_version",
+          "profile",
+          "profile_revisions",
+          "tracks",
+          "templates",
+          "applications",
+          "events"
+        ]
+      },
+      "ImportResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "const": true
+          },
+          "imported": {
+            "type": "integer"
+          },
+          "rendered": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "render_errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "details": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Issue"
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "message"
+              ]
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "imported",
+          "rendered",
+          "render_errors"
+        ]
+      }
+    },
+    "responses": {
+      "Error400": {
+        "description": "Malformed JSON or invalid parameter.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Error401": {
+        "description": "Missing, invalid, or revoked Bearer token.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Error403": {
+        "description": "Token lacks the required scope, or resource is read-only.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Error404": {
+        "description": "Resource, route, file, or template version not found.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Error405": {
+        "description": "Method not allowed; inspect the Allow header.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Error409": {
+        "description": "Duplicate vacancy URL, status conflict, referenced resource, or nonempty import target.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Error413": {
+        "description": "Request body exceeds 2097152 bytes (2 MB).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Error422": {
+        "description": "Schema/fact validation, missing profile, unsupported document version, or rendering/page-limit failure.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Error500": {
+        "description": "Internal server failure; inspect server logs.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    }
+  }
+}

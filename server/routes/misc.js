@@ -1,7 +1,23 @@
+import { readFile } from 'node:fs/promises';
 import { createToken, hasScope, listTokens, revokeToken } from '../auth.js';
 import { badRequest, conflict, notFound } from '../errors.js';
 
 export function register(router) {
+  router.add('GET', '/api/v1/guide', async ({ req }) => {
+    let origin;
+    try {
+      origin = new URL(`${req.socket?.encrypted ? 'https' : 'http'}://${req.headers.host || 'localhost'}`).origin;
+    } catch {
+      throw badRequest('Request Host header is invalid. Send the hostname and optional port of this JobForge instance.');
+    }
+    const guide = await readFile(new URL('../../docs/agent-guide.md', import.meta.url), 'utf8');
+    return { status: 200, headers: { 'Content-Type': 'text/markdown; charset=utf-8' }, raw: guide.replaceAll('{{BASE_URL}}', origin) };
+  }, { scope: 'read' });
+
+  router.add('GET', '/api/v1/openapi.json', async () => JSON.parse(
+    await readFile(new URL('../../schema/openapi.json', import.meta.url), 'utf8')
+  ), { scope: 'read' });
+
   router.add('GET', '/api/v1/version', async ({ db, config }) => {
     let chrome = { found: false, path: '', version: '' };
     try {

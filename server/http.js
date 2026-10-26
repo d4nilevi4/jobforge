@@ -119,6 +119,9 @@ async function serveStatic(req, res, pathname) {
 export function createRouter() {
   const routes = [];
   return {
+    get routes() {
+      return routes.map(({ method, segments, scope }) => ({ method, pattern: segments.join('/'), scope }));
+    },
     add(method, pattern, handler, { scope = null } = {}) {
       if (scope !== null && !SCOPES.includes(scope)) {
         throw new Error(`Unknown route scope ${scope} for ${pattern}. Use a scope exported by auth.js.`);
