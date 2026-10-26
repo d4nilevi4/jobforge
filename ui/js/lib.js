@@ -28,6 +28,7 @@ export function legalActions(status, { hasResume = false } = {}) {
   const draft = { status: 'draft', label: 'Back to draft' };
   const skip = { status: 'skipped', label: 'Skip' };
   const reject = { status: 'rejected', label: 'Rejected', needsNote: true };
+  const reopen = { status: 'draft', label: 'Reopen as draft', primary: true };
   const actions = {
     draft: [approve, { status: 'needs_review', label: 'Needs review', needsNote: true }, skip],
     needs_review: [approve, draft, skip],
@@ -35,8 +36,8 @@ export function legalActions(status, { hasResume = false } = {}) {
     sent: [{ status: 'interview', label: 'Interview', primary: true }, reject],
     interview: [{ status: 'offer', label: 'Offer', primary: true }, reject],
     offer: [reject],
-    rejected: hasResume ? [{ status: 'draft', label: 'Reopen as draft', primary: true }] : [],
-    skipped: hasResume ? [{ status: 'draft', label: 'Reopen as draft', primary: true }] : []
+    rejected: hasResume ? [reopen] : [],
+    skipped: [{ ...reopen, ...(!hasResume ? { note: 'Reopening only changes the status. An agent must file documents with PUT before this application can be approved.' } : {}) }]
   };
   return (Object.hasOwn(actions, status) ? actions[status] : []).map(action => ({ ...action }));
 }
@@ -67,6 +68,74 @@ export function stripToken(hash = '') {
   const fragment = String(hash).replace(/^#/, '');
   const clean = fragment.replace(/(^|[&?])token=[^&?]*/g, '$1').replace(/([?&])[?&]+/g, '$1').replace(/^[?&]+|[?&]+$/g, '');
   return `#${clean || '/applications'}`;
+}
+
+export async function resolveResumeRoute(id, getTrack) {
+  if (id === '+new') return { creating: true, existing: null };
+  try {
+    return { creating: false, existing: await getTrack(id) };
+  } catch (error) {
+    if (id === 'new' && error.status === 404) return { creating: true, existing: null };
+    throw error;
+  }
+}
+
+export function splitTemplateRef(ref) {
+  const match = typeof ref === 'string' && /^([a-z0-9][a-z0-9-]*)(?:@([1-9][0-9]*))?$/.exec(ref);
+  const version = match?.[2] === undefined ? undefined : Number(match[2]);
+  if (!match || (version !== undefined && !Number.isSafeInteger(version))) {
+    throw new Error('Template reference is invalid. Use an id or id@version, such as classic@1, with a positive integer version.');
+  }
+  return { id: match[1], version };
+}
+
+export function templateOptions(items, ref, { allowEmpty = false } = {}) {
+  const selected = ref ? splitTemplateRef(ref).id : '';
+  const choices = items.map(item => ({ value: item.id, label: item.name, selected: item.id === selected }));
+  if (allowEmpty) choices.unshift({ value: '', label: 'No default cover letter', selected: !selected });
+  if (selected && !items.some(item => item.id === selected)) choices.push({ value: selected, label: `${ref} (current)`, selected: true });
+  return choices;
+}
+
+export function selectedTemplateRef(original, selected) {
+  return original && splitTemplateRef(original).id === selected ? original : selected;
+}
+
+export function templatePreviewPath(ref) {
+  const { id, version } = splitTemplateRef(ref);
+  return `/templates/${encodeURIComponent(id)}/preview?format=html${version === undefined ? '' : `&version=${version}`}`;
+}
+
+export function createDocumentCache(loadBlob, urls = URL) {
+  const entries = new Map();
+  let active = true;
+  function revoke(entry) {
+    if (entry?.url) urls.revokeObjectURL(entry.url);
+  }
+  return {
+    get(name, file, { reload = false } = {}) {
+      if (!active) return Promise.resolve(null);
+      const current = entries.get(name);
+      if (current && current.file === file && !reload) return current.promise;
+      revoke(current);
+      const entry = { file, url: null };
+      entries.set(name, entry);
+      entry.promise = Promise.resolve().then(() => loadBlob(file)).then(blob => {
+        if (!active || entries.get(name) !== entry) return null;
+        entry.url = urls.createObjectURL(blob);
+        return entry.url;
+      }).catch(error => {
+        if (entries.get(name) === entry) entries.delete(name);
+        throw error;
+      });
+      return entry.promise;
+    },
+    dispose() {
+      active = false;
+      entries.forEach(revoke);
+      entries.clear();
+    }
+  };
 }
 
 export function buildBaseFromProfile(profile, language = 'en') {

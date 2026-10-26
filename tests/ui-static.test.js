@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve, relative } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { api, ApiError, getToken, setToken } from '../ui/js/api.js';
+import { downloadBlob } from '../ui/js/dom.js';
 import { statuses } from '../ui/js/lib.js';
 
 const root = fileURLToPath(new URL('../ui/', import.meta.url));
@@ -117,6 +118,40 @@ test('template HTML previews always use empty sandbox permissions', async () => 
     }
   }
   assert.equal(previews, 2);
+});
+
+test('downloads release object URLs even when creating or clicking the link fails', t => {
+  const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  t.after(() => {
+    if (originalDocument) Object.defineProperty(globalThis, 'document', originalDocument);
+    else delete globalThis.document;
+  });
+  const callbacks = [];
+  const revoked = [];
+  const error = new Error('Download link failed.');
+  let failure;
+  let removed = 0;
+  let count = 0;
+  Object.defineProperty(globalThis, 'document', { configurable: true, value: {
+    createElement() {
+      if (failure === 'create') throw error;
+      return { setAttribute() {}, click() { if (failure === 'click') throw error; }, remove() { removed++; } };
+    },
+    body: { append() {} }
+  } });
+  t.mock.method(URL, 'createObjectURL', () => `blob:download-${++count}`);
+  t.mock.method(URL, 'revokeObjectURL', url => revoked.push(url));
+  t.mock.method(globalThis, 'setTimeout', (callback, delay) => { assert.equal(delay, 1000); callbacks.push(callback); });
+  for (failure of [null, 'click', 'create']) {
+    const download = () => downloadBlob(new Blob(['PDF']), 'resume.pdf');
+    if (failure) assert.throws(download, actual => actual === error);
+    else assert.doesNotThrow(download);
+    assert.equal(callbacks.length, 1);
+    assert.equal(revoked.length, count - 1);
+    callbacks.shift()();
+    assert.equal(revoked.at(-1), `blob:download-${count}`);
+  }
+  assert.equal(removed, 2);
 });
 
 function browserGlobals(t) {

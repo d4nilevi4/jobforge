@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { plural, relativeTime, statusLabel, statuses, legalActions, parseHashRoute, routeChanged, stripToken, buildBaseFromProfile, cleanProfile, linesToArray, arrayToLines, slugValid, diffKeys, formatBytes } from '../ui/js/lib.js';
+import { plural, relativeTime, statusLabel, statuses, legalActions, parseHashRoute, routeChanged, stripToken, resolveResumeRoute, splitTemplateRef, templateOptions, selectedTemplateRef, templatePreviewPath, createDocumentCache, buildBaseFromProfile, cleanProfile, linesToArray, arrayToLines, slugValid, diffKeys, formatBytes } from '../ui/js/lib.js';
 
 test('plural selects the singular only for one and supports irregular forms', () => {
   assert.equal(plural(1, 'warning', 'warnings'), 'warning');
@@ -42,7 +42,15 @@ test('legalActions follows the specified order for every status', () => {
   assert.equal(legalActions('approved')[0].label, 'Mark as sent');
   assert.equal(legalActions('needs_review')[1].label, 'Back to draft');
   assert.equal(legalActions('skipped', { hasResume: true })[0].label, 'Reopen as draft');
-  for (const status of ['rejected', 'skipped', 'unknown', 'constructor', '__proto__']) assert.deepEqual(legalActions(status), []);
+  assert.deepEqual(legalActions('rejected', { hasResume: true }), [{ status: 'draft', label: 'Reopen as draft', primary: true }]);
+  assert.equal(legalActions('skipped', { hasResume: true })[0].note, undefined);
+  const [reopen] = legalActions('skipped');
+  assert.equal(reopen.status, 'draft');
+  assert.equal(reopen.label, 'Reopen as draft');
+  assert.match(reopen.note, /only changes the status/);
+  assert.match(reopen.note, /file documents with PUT.*before.*approved/);
+  assert.deepEqual(legalActions('skipped', { hasResume: false }), [reopen]);
+  for (const status of ['rejected', 'unknown', 'constructor', '__proto__']) assert.deepEqual(legalActions(status), []);
   const actions = legalActions('draft');
   actions[0].label = 'Changed';
   assert.equal(legalActions('draft')[0].label, 'Approve');
@@ -50,7 +58,9 @@ test('legalActions follows the specified order for every status', () => {
 
 test('hash routing supports every screen, encoded ids, and default applications', () => {
   for (const hash of ['', '#', '#/']) assert.deepEqual(parseHashRoute(hash), { path: ['applications'] });
-  for (const path of ['applications', 'applications/42', 'profile', 'resumes', 'resumes/new', 'resumes/backend', 'templates', 'templates/classic', 'settings']) assert.deepEqual(parseHashRoute(`#/${path}`), { path: path.split('/') });
+  for (const path of ['applications', 'applications/42', 'profile', 'resumes', 'resumes/+new', 'resumes/new', 'resumes/create', 'resumes/backend', 'templates', 'templates/classic', 'settings']) assert.deepEqual(parseHashRoute(`#/${path}`), { path: path.split('/') });
+  assert.deepEqual(parseHashRoute('#/resumes/%2Bnew?unused=1'), { path: ['resumes', '+new'] });
+  assert.equal(slugValid(parseHashRoute('#/resumes/+new').path[1]), false);
   assert.deepEqual(parseHashRoute('#/templates/custom%2Dexample'), { path: ['templates', 'custom-example'] });
   assert.deepEqual(parseHashRoute('#/resumes/%invalid'), { path: ['resumes', '%invalid'] });
 });
@@ -61,6 +71,7 @@ test('routeChanged resets navigation for a new path while ignoring query-only ch
     ['', '#/applications'], ['#/', '#/applications'],
     ['#/profile', '#/profile'], ['#/applications?q=first', '#/applications?q=second&status=draft'],
     ['#/settings?tab=tokens', '#/settings'], ['#/profile&token=old', '#/profile?token=new'],
+    ['#/resumes/+new', '#/resumes/%2Bnew'],
     ['#/resumes/example', '#/resumes/%65xample'], ['#/resumes/%invalid', '#/resumes/%invalid']
   ];
   for (const [previous, next] of unchanged) assert.equal(routeChanged(previous, next), false, `${previous} -> ${next}`);
@@ -68,6 +79,7 @@ test('routeChanged resets navigation for a new path while ignoring query-only ch
     ['#/applications', '#/profile'], ['#/applications', '#/applications/1'],
     ['#/applications/1?q=keep', '#/applications/2?q=keep'],
     ['#/resumes/a%2Fb', '#/resumes/a/b'], ['#/templates/classic', '#/templates/compact'],
+    ['#/resumes/new', '#/resumes/+new'], ['#/resumes/create', '#/resumes/+new'],
     ['#/settings', '#/applications?source=settings']
   ];
   for (const [previous, next] of changed) assert.equal(routeChanged(previous, next), true, `${previous} -> ${next}`);
@@ -90,6 +102,147 @@ test('fragment tokens are decoded, stripped, and never left in the route', () =>
     assert.equal(parseHashRoute(stripToken(hash)).token, undefined);
   }
   assert.equal(stripToken('#/settings&other_token=keep'), '#/settings&other_token=keep');
+});
+
+test('resume creation cannot collide with track ids and the legacy new route prefers the stored track', async () => {
+  const calls = [];
+  const getTrack = async id => {
+    calls.push(id);
+    return { track: { name: `Track ${id}` } };
+  };
+  assert.deepEqual(await resolveResumeRoute(parseHashRoute('#/resumes/+new').path[1], getTrack), { creating: true, existing: null });
+  assert.deepEqual(calls, []);
+  for (const id of ['new', 'create', 'backend']) {
+    assert.deepEqual(await resolveResumeRoute(parseHashRoute(`#/resumes/${id}`).path[1], getTrack), { creating: false, existing: { track: { name: `Track ${id}` } } });
+  }
+  assert.deepEqual(calls, ['new', 'create', 'backend']);
+  const missing = Object.assign(new Error('Track does not exist.'), { status: 404 });
+  const fail = async () => { throw missing; };
+  assert.deepEqual(await resolveResumeRoute('new', fail), { creating: true, existing: null });
+  await assert.rejects(resolveResumeRoute('create', fail), error => error === missing);
+  for (const status of [401, 403, 500]) {
+    const error = Object.assign(new Error('Request failed.'), { status });
+    await assert.rejects(resolveResumeRoute('new', async () => { throw error; }), actual => actual === error);
+  }
+});
+
+test('splitTemplateRef accepts ids and safe positive versions and rejects malformed references', () => {
+  assert.deepEqual(splitTemplateRef('classic'), { id: 'classic', version: undefined });
+  assert.deepEqual(splitTemplateRef('classic@1'), { id: 'classic', version: 1 });
+  assert.deepEqual(splitTemplateRef('custom-x@12'), { id: 'custom-x', version: 12 });
+  assert.deepEqual(splitTemplateRef(`custom-x@${Number.MAX_SAFE_INTEGER}`), { id: 'custom-x', version: Number.MAX_SAFE_INTEGER });
+  for (const ref of ['', null, undefined, 12, {}, 'Classic', '-classic', 'classic@', '@1', 'classic@0', 'classic@01', 'classic@-1', 'classic@1.5', 'classic@1@2', 'classic@9007199254740992', 'classic/path', 'classic_x', ' classic', 'classic@1\n']) {
+    assert.throws(() => splitTemplateRef(ref), /Template reference.*id@version.*positive integer/);
+  }
+});
+
+test('template choices select the id while saving and previewing preserves a pinned reference', () => {
+  const items = [{ id: 'classic', name: 'Classic' }, { id: 'compact', name: 'Compact' }];
+  const options = templateOptions(items, 'classic@1');
+  assert.deepEqual(options, [{ value: 'classic', label: 'Classic', selected: true }, { value: 'compact', label: 'Compact', selected: false }]);
+  assert.equal(selectedTemplateRef('classic@1', options.find(option => option.selected).value), 'classic@1');
+  assert.equal(selectedTemplateRef('classic@1', 'compact'), 'compact');
+  assert.equal(selectedTemplateRef('classic', 'classic'), 'classic');
+  assert.deepEqual(templateOptions(items, 'custom-x@12').at(-1), { value: 'custom-x', label: 'custom-x@12 (current)', selected: true });
+  assert.equal(items.length, 2);
+  assert.equal(templatePreviewPath('classic'), '/templates/classic/preview?format=html');
+  assert.equal(templatePreviewPath('classic@1'), '/templates/classic/preview?format=html&version=1');
+  assert.equal(templatePreviewPath('custom-x@12'), '/templates/custom-x/preview?format=html&version=12');
+});
+
+test('cover choices keep an empty default optional and preserve pinned covers', () => {
+  const items = [{ id: 'letter', name: 'Letter' }];
+  const options = templateOptions(items, '', { allowEmpty: true });
+  assert.deepEqual(options, [{ value: '', label: 'No default cover letter', selected: true }, { value: 'letter', label: 'Letter', selected: false }]);
+  assert.equal(selectedTemplateRef('', options.find(option => option.selected).value), '');
+  assert.equal(selectedTemplateRef('letter@1', ''), '');
+  assert.equal(selectedTemplateRef('', 'letter'), 'letter');
+  assert.deepEqual(templateOptions([], '', { allowEmpty: true }), [options[0]]);
+  const pinned = templateOptions(items, 'letter@1', { allowEmpty: true });
+  assert.equal(pinned[0].selected, false);
+  assert.equal(selectedTemplateRef('letter@1', pinned.find(option => option.selected).value), 'letter@1');
+});
+
+function documentCache(loadBlob) {
+  const created = [];
+  const revoked = [];
+  const cache = createDocumentCache(loadBlob, {
+    createObjectURL(blob) { created.push(blob); return `blob:test-${created.length}`; },
+    revokeObjectURL(url) { revoked.push(url); }
+  });
+  return { cache, created, revoked };
+}
+
+test('document cache shares pending fetches and reuses one URL per document until leaving the view', async () => {
+  const requests = [];
+  const { cache, created, revoked } = documentCache(async file => { requests.push(file); return new Blob([file]); });
+  const first = cache.get('resume.pdf', '/resume.pdf');
+  assert.equal(cache.get('resume.pdf', '/resume.pdf'), first);
+  const resume = await first;
+  const cover = await cache.get('cover.pdf', '/cover.pdf');
+  assert.equal(await cache.get('resume.pdf', '/resume.pdf'), resume);
+  assert.equal(await cache.get('cover.pdf', '/cover.pdf'), cover);
+  assert.deepEqual(requests, ['/resume.pdf', '/cover.pdf']);
+  assert.equal(created.length, 2);
+  assert.deepEqual(revoked, []);
+  cache.dispose();
+  assert.deepEqual(revoked, [resume, cover]);
+  cache.dispose();
+  assert.deepEqual(revoked, [resume, cover]);
+  assert.equal(await cache.get('resume.pdf', '/resume.pdf'), null);
+  assert.equal(requests.length, 2);
+});
+
+test('re-fetching a document revokes its previous URL and leaves other documents cached', async () => {
+  const { cache, created, revoked } = documentCache(async file => new Blob([file]));
+  const resume = await cache.get('resume.pdf', '/resume.pdf');
+  const cover = await cache.get('cover.pdf', '/cover.pdf');
+  const reloading = cache.get('resume.pdf', '/resume.pdf', { reload: true });
+  assert.deepEqual(revoked, [resume]);
+  const refreshed = await reloading;
+  assert.notEqual(refreshed, resume);
+  assert.equal(await cache.get('cover.pdf', '/cover.pdf'), cover);
+  const changed = await cache.get('resume.pdf', '/resume.pdf?revision=2');
+  assert.deepEqual(revoked, [resume, refreshed]);
+  assert.equal(created.length, 4);
+  cache.dispose();
+  assert.deepEqual(revoked, [resume, refreshed, changed, cover]);
+});
+
+test('document cache retries failed fetches without retaining a stale URL', async () => {
+  let fail = false;
+  const error = new Error('PDF request failed.');
+  const { cache, created, revoked } = documentCache(async () => { if (fail) throw error; return new Blob(['PDF']); });
+  const original = await cache.get('resume.pdf', '/resume.pdf');
+  fail = true;
+  await assert.rejects(cache.get('resume.pdf', '/resume.pdf', { reload: true }), actual => actual === error);
+  assert.deepEqual(revoked, [original]);
+  fail = false;
+  const retried = await cache.get('resume.pdf', '/resume.pdf');
+  assert.notEqual(retried, original);
+  assert.equal(created.length, 2);
+  cache.dispose();
+  assert.deepEqual(revoked, [original, retried]);
+});
+
+test('pending document fetches cannot create URLs after leaving or replacing the document', async () => {
+  const finish = [];
+  const { cache, created, revoked } = documentCache(() => new Promise(resolve => finish.push(resolve)));
+  const old = cache.get('resume.pdf', '/resume.pdf');
+  const current = cache.get('resume.pdf', '/resume.pdf', { reload: true });
+  await Promise.resolve();
+  finish[1](new Blob(['new PDF']));
+  const url = await current;
+  finish[0](new Blob(['old PDF']));
+  assert.equal(await old, null);
+  assert.equal(created.length, 1);
+  const pending = cache.get('cover.pdf', '/cover.pdf');
+  await Promise.resolve();
+  cache.dispose();
+  assert.deepEqual(revoked, [url]);
+  finish[2](new Blob(['cover PDF']));
+  assert.equal(await pending, null);
+  assert.equal(created.length, 1);
 });
 
 const profile = {

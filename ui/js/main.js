@@ -34,11 +34,6 @@ function createContext() {
     get active() { return active; },
     refresh() { if (active) render(); },
     onCleanup(callback) { if (active) cleanups.push(callback); else callback(); },
-    objectURL(blob) {
-      const url = URL.createObjectURL(blob);
-      this.onCleanup(() => URL.revokeObjectURL(url));
-      return url;
-    },
     dispose() { active = false; cleanups.splice(0).forEach(callback => callback()); }
   };
 }

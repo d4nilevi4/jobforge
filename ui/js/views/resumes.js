@@ -1,11 +1,11 @@
 import { api } from '../api.js';
 import { h, clear, button, field, busy, toast, detailsList, confirmDialog } from '../dom.js';
-import { buildBaseFromProfile, slugValid, relativeTime, plural, previewDocument } from '../lib.js';
+import { buildBaseFromProfile, slugValid, relativeTime, plural, previewDocument, resolveResumeRoute, templateOptions, selectedTemplateRef, templatePreviewPath } from '../lib.js';
 
 export async function resumesView(root) {
   const tracks = await api.get('/tracks');
-  root.append(h('div', { className: 'page-heading' }, h('div', {}, h('h1', {}, 'Resumes'), h('p', { className: 'muted' }, 'Keep a starting point for each kind of role. Agents tailor it for each vacancy.')), h('a', { href: '#/resumes/new', className: 'button primary' }, 'New resume variant')));
-  if (!tracks.length) root.append(h('div', { className: 'empty' }, h('p', {}, 'No resume variants yet. Fill in ', h('a', { href: '#/profile' }, 'About me'), ', then create a variant for the roles you want.'), h('a', { href: '#/resumes/new' }, 'Create a resume variant')));
+  root.append(h('div', { className: 'page-heading' }, h('div', {}, h('h1', {}, 'Resumes'), h('p', { className: 'muted' }, 'Keep a starting point for each kind of role. Agents tailor it for each vacancy.')), h('a', { href: '#/resumes/+new', className: 'button primary' }, 'New resume variant')));
+  if (!tracks.length) root.append(h('div', { className: 'empty' }, h('p', {}, 'No resume variants yet. Fill in ', h('a', { href: '#/profile' }, 'About me'), ', then create a variant for the roles you want.'), h('a', { href: '#/resumes/+new' }, 'Create a resume variant')));
   else root.append(h('div', { className: 'stack' }, tracks.map(track => h('article', { className: 'card' }, h('h2', {}, h('a', { href: `#/resumes/${encodeURIComponent(track.id)}` }, track.name)), h('p', {}, track.when_to_use), h('div', { className: 'meta small' }, h('span', {}, `Language: ${track.language}`), h('span', {}, `Resume: ${track.resume_template}`), h('span', {}, `Cover: ${track.cover_template}`), h('time', { datetime: track.updated_at, title: track.updated_at }, `Updated ${relativeTime(track.updated_at).toLowerCase()}`))))));
 }
 
@@ -17,8 +17,8 @@ function parseBase(text) {
 }
 
 export async function resumeView(root, ctx, id) {
-  const creating = id === 'new';
-  const [profileResponse, resumeTemplates, coverTemplates, existing] = await Promise.all([api.get('/profile'), api.get('/templates?kind=resume'), api.get('/templates?kind=cover'), creating ? null : api.get(`/tracks/${encodeURIComponent(id)}`)]);
+  const [profileResponse, resumeTemplates, coverTemplates, route] = await Promise.all([api.get('/profile'), api.get('/templates?kind=resume'), api.get('/templates?kind=cover'), resolveResumeRoute(id, trackId => api.get(`/tracks/${encodeURIComponent(trackId)}`))]);
+  const { creating, existing } = route;
   root.append(h('a', { href: '#/resumes' }, 'All resume variants'), h('h1', {}, creating ? 'New resume variant' : existing.track.name));
   if (!profileResponse.profile || profileResponse.empty) {
     root.append(h('div', { className: 'empty' }, h('p', {}, 'Add your facts in ', h('a', { href: '#/profile' }, 'About me'), ' before creating or editing a resume variant.')));
@@ -30,13 +30,11 @@ export async function resumeView(root, ctx, id) {
   const when = h('textarea', { value: doc.when_to_use, rows: 3, required: true });
   const notes = h('textarea', { value: doc.notes || '', rows: 4 });
   const language = h('input', { value: doc.language, required: true, pattern: '[a-z]{2}(-[A-Za-z]+)?', spellcheck: 'false' });
-  function templateSelect(items, selected) {
-    const choices = [...items];
-    if (selected && !choices.some(item => item.id === selected)) choices.push({ id: selected, name: `${selected} (current)` });
-    return h('select', { required: true }, choices.map(item => h('option', { value: item.id, selected: item.id === selected }, item.name)));
+  function templateSelect(items, selected, allowEmpty = false) {
+    return h('select', { required: !allowEmpty }, templateOptions(items, selected, { allowEmpty }).map(item => h('option', { value: item.value, selected: item.selected }, item.label)));
   }
   const resume = templateSelect(resumeTemplates, doc.resume_template);
-  const cover = templateSelect(coverTemplates, doc.cover_template);
+  const cover = templateSelect(coverTemplates, doc.cover_template, true);
   const coverText = h('textarea', { value: doc.base_cover || '', rows: 5 });
   const base = h('textarea', { className: 'mono editor', value: JSON.stringify(doc.base, null, 2), spellcheck: 'false', required: true });
   const errors = h('div');
@@ -45,7 +43,7 @@ export async function resumeView(root, ctx, id) {
   const previewErrors = h('div');
   const preview = button('Preview', () => busy(preview, previewErrors, async () => {
     if (!resume.value) throw new Error('Choose a resume template before previewing.');
-    const html = await api.post(`/templates/${encodeURIComponent(resume.value)}/preview?format=html`, { content: parseBase(base.value), lang: language.value }, { format: 'text' });
+    const html = await api.post(templatePreviewPath(selectedTemplateRef(doc.resume_template, resume.value)), { content: parseBase(base.value), lang: language.value }, { format: 'text' });
     if (ctx.active) clear(previewHost, h('iframe', { className: 'preview-frame', title: 'Resume preview', sandbox: '', srcdoc: previewDocument(html) }));
   }));
   const fill = button('Fill from my profile', () => {
@@ -58,7 +56,7 @@ export async function resumeView(root, ctx, id) {
     event.preventDefault();
     busy(submit, errors, async () => {
       if (!slugValid(slug.value)) throw new Error('Resume variant id is invalid. Use 1–63 lowercase letters, numbers, or hyphens, starting with a letter or number.');
-      const track = { schema_version: 1, name: name.value, when_to_use: when.value, notes: notes.value, language: language.value, resume_template: resume.value, cover_template: cover.value, base: parseBase(base.value) };
+      const track = { schema_version: 1, name: name.value, when_to_use: when.value, notes: notes.value, language: language.value, resume_template: selectedTemplateRef(doc.resume_template, resume.value), cover_template: selectedTemplateRef(doc.cover_template, cover.value), base: parseBase(base.value) };
       if (coverText.value.trim()) track.base_cover = coverText.value;
       const result = await api.put(`/tracks/${encodeURIComponent(slug.value)}`, track);
       if (!ctx.active) return;

@@ -1,10 +1,12 @@
 import { api } from '../api.js';
 import { h, clear, button, tabs, busy, toast, errorBox, detailsList, confirmDialog, noteDialog, externalLink, copyText, downloadBlob } from '../dom.js';
-import { legalActions, statusLabel, relativeTime, plural } from '../lib.js';
+import { legalActions, statusLabel, relativeTime, plural, createDocumentCache } from '../lib.js';
 
 export async function applicationView(root, ctx, id) {
   const path = `/applications/${encodeURIComponent(id)}`;
   const data = await api.get(path);
+  const documents = createDocumentCache(api.getBlob);
+  ctx.onCleanup(() => documents.dispose());
   const vacancy = data.vacancy;
   const errors = h('div');
   const actions = h('div', { className: 'actions application-actions' });
@@ -19,6 +21,10 @@ export async function applicationView(root, ctx, id) {
       });
     }, action.primary ? 'primary' : '');
     actions.append(control);
+    if (action.note) {
+      control.setAttribute('aria-describedby', 'reopen-note');
+      actions.append(h('small', { id: 'reopen-note', className: 'muted' }, action.note));
+    }
   }
   const remove = button('Delete', async () => {
     if (!await confirmDialog('Delete application?', 'The application, documents, and history will be deleted.')) return;
@@ -42,21 +48,21 @@ export async function applicationView(root, ctx, id) {
   ctx.onCleanup(() => wideScreen.removeEventListener('change', updateLayout));
   root.append(h('div', { className: 'document-controls' }, tabHost, toggle), panel);
   const downloadName = type => `${vacancy.company || 'Application'} - ${vacancy.title || id} - ${type}.pdf`.replace(/[\\/:*?"<>|]/g, '-');
-  async function pdf(target, file, label) {
+  async function pdf(target, name, file, label) {
     if (!file) { target.append(h('p', { className: 'muted' }, `${label} PDF is not available.`)); return; }
     const errors = h('div');
     const download = button('Download PDF', () => busy(download, errors, async () => downloadBlob(await api.getBlob(`${file}${file.includes('?') ? '&' : '?'}dl=1`), downloadName(label))));
     const frameHost = h('div', {}, h('p', { className: 'muted' }, `Loading ${label}…`));
     target.append(download, errors, frameHost);
     function failed(error) {
-      if (ctx.active && panel.contains(target)) clear(frameHost, h('p', {}, `${label} PDF could not be loaded.`), errorBox(error, load));
+      if (ctx.active && panel.contains(target)) clear(frameHost, h('p', {}, `${label} PDF could not be loaded.`), errorBox(error, () => load(true)));
     }
-    async function load() {
+    async function load(reload = false) {
       clear(frameHost, h('p', { className: 'muted', role: 'status' }, `Loading ${label} PDF…`));
       try {
-        const blob = await api.getBlob(file);
-        if (!ctx.active || !panel.contains(target)) return;
-        clear(frameHost, h('iframe', { className: 'pdf-frame', title: `${label} PDF`, src: ctx.objectURL(blob), onerror: () => failed(new Error(`The ${label} PDF viewer could not open ${file}. Retry or use Download PDF to open it separately.`)) }));
+        const url = await documents.get(name, file, { reload });
+        if (!url || !ctx.active || !panel.contains(target)) return;
+        clear(frameHost, h('iframe', { className: 'pdf-frame', title: `${label} PDF`, src: url, onerror: () => failed(new Error(`The ${label} PDF viewer could not open ${file}. Retry or use Download PDF to open it separately.`)) }));
       } catch (error) { failed(error); }
     }
     await load();
@@ -71,7 +77,7 @@ export async function applicationView(root, ctx, id) {
     if (data.warnings?.length) target.append(h('div', { className: 'callout' }, h('h3', {}, `${data.warnings.length} ${plural(data.warnings.length, 'warning', 'warnings')}`), detailsList(data.warnings)));
     const fileHost = h('div');
     target.append(fileHost);
-    pdf(fileHost, data.files?.resume_pdf, 'Resume');
+    pdf(fileHost, 'resume.pdf', data.files?.resume_pdf, 'Resume');
   }
   function cover(target) {
     if (!data.cover) {
@@ -82,7 +88,7 @@ export async function applicationView(root, ctx, id) {
     target.append(h('div', { className: 'card' }, h('pre', { className: 'readable' }, data.cover.content?.text || ''), h('hr'), button('Copy text', () => copyText(data.cover.content?.text || ''))), h('p', { className: 'muted small' }, `Template: ${data.cover.template || '—'} · ${pages ?? 'Unknown'} ${plural(pages, 'page', 'pages')}`));
     const fileHost = h('div');
     target.append(fileHost);
-    pdf(fileHost, data.files?.cover_pdf, 'Cover letter');
+    pdf(fileHost, 'cover.pdf', data.files?.cover_pdf, 'Cover letter');
   }
   function select(next) {
     const columns = wideScreen.matches && sideBySide;

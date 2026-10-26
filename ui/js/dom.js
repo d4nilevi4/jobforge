@@ -124,11 +124,15 @@ export async function copyText(text) {
 
 export function downloadBlob(blob, name) {
   const url = URL.createObjectURL(blob);
-  const link = h('a', { href: url, download: name });
-  document.body.append(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  let link;
+  try {
+    link = h('a', { href: url, download: name });
+    document.body.append(link);
+    link.click();
+  } finally {
+    link?.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
 }
 
 export function safeUrl(value) {
