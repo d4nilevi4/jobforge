@@ -22,7 +22,7 @@ export function buildContext({ profile, meta, resume, cover, lang }) {
       phone: identity.phone || '',
       location: identity.location || '',
       availability: availability[language] || availability.en || Object.values(availability)[0] || '',
-      links: (identity.links ?? []).map(({ label, url }) => {
+      links: (Array.isArray(identity.links) ? identity.links : []).filter((link) => link && typeof link === 'object').map(({ label, url }) => {
         const sanitized = safeUrl(url);
         return {
           label,
@@ -36,7 +36,8 @@ export function buildContext({ profile, meta, resume, cover, lang }) {
     paper: meta?.paper || 'letter',
     resume: Array.isArray(resume?.projects) ? {
       ...resume,
-      projects: resume.projects.map((project) => ({ ...project, link: safeUrl(project.link) }))
+      projects: resume.projects.filter((project) => project && typeof project === 'object')
+        .map((project) => ({ ...project, link: safeUrl(project.link) }))
     } : resume,
     cover,
     paragraphs: paragraphs(cover?.text)

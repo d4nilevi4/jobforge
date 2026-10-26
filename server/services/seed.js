@@ -1,6 +1,6 @@
 import { readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { createToken } from '../auth.js';
+import { createToken, PRESETS } from '../auth.js';
 import { conflict, renderFailed, validationFailed } from '../errors.js';
 import { check } from '../guard.js';
 import { renderPdf as defaultRenderPdf } from '../render/index.js';
@@ -48,18 +48,19 @@ function coverText(content, title, company) {
   return `I am applying for the ${title} role at ${company}. My experience at ${first.company} fits the responsibilities in your vacancy.\n\n${facts}\n\nI would bring that experience to your team and discuss the implementation and release decisions behind this work.`;
 }
 
-function ownerToken(db, provided) {
-  if (provided?.scopes?.includes('approve') && provided.scopes.includes('write:applications')) return provided;
+function ownerToken(db) {
   for (const row of db.prepare('SELECT id, scopes FROM tokens WHERE revoked_at IS NULL ORDER BY id').all()) {
     const scopes = JSON.parse(row.scopes);
-    if (scopes.includes('approve') && scopes.includes('write:applications')) return { id: row.id, scopes };
+    if (PRESETS.owner.every((scope) => scopes.includes(scope))) return { id: row.id, scopes };
   }
   return createToken(db, { name: 'demo seed owner', preset: 'owner' });
 }
 
-export async function seedDemo(db, { dataDir, token, chrome, deps = {}, force = false } = {}) {
-  if (db.prepare('SELECT 1 FROM applications LIMIT 1').get()) {
-    throw conflict(`Demo seeding requires no existing applications${force ? ', including with --force' : ''}. Use a fresh DATA_DIR; seed-demo never deletes existing or demo applications.`);
+export async function seedDemo(db, { dataDir, chrome, deps = {}, force = false } = {}) {
+  for (const table of ['profile', 'profile_revisions', 'tracks', 'templates', 'template_versions', 'applications', 'application_events']) {
+    if (db.prepare(`SELECT 1 FROM ${table} LIMIT 1`).get()) {
+      throw conflict(`Demo seeding requires an empty content store, but ${table} contains data${force ? ', including with --force' : ''}. Use a fresh DATA_DIR; seed-demo never overwrites or deletes user data.`);
+    }
   }
   const renderer = deps.renderPdf ?? defaultRenderPdf;
   const browser = deps.chrome ?? chrome ?? { bin: findChrome() };
@@ -69,11 +70,12 @@ export async function seedDemo(db, { dataDir, token, chrome, deps = {}, force = 
   const profile = validateDocument('profile', JSON.parse(readFileSync(new URL('../../examples/profile.example.json', import.meta.url), 'utf8')));
   if (profile.errors.length) throw validationFailed('The example profile is invalid. Correct the example before seeding.', profile.errors);
   const tracks = JSON.parse(readFileSync(new URL('../../examples/tracks.example.json', import.meta.url), 'utf8'));
-  const owner = ownerToken(db, token);
-  const options = { dataDir, token: owner, renderPdf: renderer, chrome: browser };
+  let owner;
   const created = [];
   db.exec('SAVEPOINT seed_demo');
   try {
+    owner = ownerToken(db);
+    const options = { dataDir, token: owner, renderPdf: renderer, chrome: browser };
     saveProfile(db, profile.doc, owner.id);
     for (const [id, input] of Object.entries(tracks)) {
       const track = validateDocument('track', input);
@@ -106,5 +108,5 @@ export async function seedDemo(db, { dataDir, token, chrome, deps = {}, force = 
     if (dataDir) for (const id of created) rmSync(join(dataDir, 'files', String(id)), { recursive: true, force: true });
     throw error;
   }
-  return { ok: true, created };
+  return { ok: true, created, ...(owner.secret ? { owner_token: owner.secret } : {}) };
 }

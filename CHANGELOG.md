@@ -4,6 +4,8 @@ All notable changes are recorded here in [Keep a Changelog](https://keepachangel
 
 ## [Unreleased]
 
+- Fix application PDF locking, file/database consistency, document validation and profile provenance; make bundle transfers consistent and demo seeding non-destructive with usable owner credentials.
+
 ### Added
 
 - First release: self-hosted, single-person job application workspace using Node built-ins and SQLite, with no npm dependencies.

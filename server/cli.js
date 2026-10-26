@@ -59,7 +59,7 @@ async function doctor(config) {
   return supported ? 0 : 1;
 }
 
-async function main(args) {
+export async function main(args, { deps = {} } = {}) {
   const [command, ...rest] = args;
   const validArgs = command === 'token'
     || (command === 'export' && (!rest.length || (rest.length === 2 && rest[0] === '--out' && rest[1] && !rest[1].startsWith('--'))))
@@ -101,7 +101,10 @@ async function main(args) {
         result = await importBundle(db, bundle, options);
       } else {
         const { seedDemo } = await import('./services/seed.js');
-        result = await seedDemo(db, { ...options, force: rest.includes('--force') });
+        result = await seedDemo(db, { ...options, deps, force: rest.includes('--force') });
+        const { owner_token: secret, ...summary } = result;
+        if (secret) console.log(`Created the initial owner token. Save this secret now; it will only be shown once: ${secret}`);
+        result = summary;
       }
       console.log(JSON.stringify(result));
     } else {

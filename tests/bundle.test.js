@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { openDb } from '../server/db.js';
+import { saveProfile } from '../server/services/profile.js';
 import { exportBundle, importBundle } from '../server/services/bundle.js';
 import { applicationInput, applicationTestServer, demoExample, fakeApplicationPdf, startApplicationServer } from './helpers.js';
 
@@ -188,4 +190,188 @@ test('CLI export writes only JSON to stdout or --out, and import reads --file', 
   assert.equal(malformed.status, 1);
   assert.match(malformed.stderr, /Cannot read import JSON/);
   assert.ok(readFileSync(path, 'utf8'));
+});
+
+test('import derives normalization from URL and company and preserves create-time duplicate detection', async (t) => {
+  const source = await applicationTestServer(t);
+  await source.api('POST', '/api/v1/applications', applicationInput());
+  const bundle = exportBundle(source.db);
+  Object.assign(bundle.applications[0], {
+    vacancy_url: 'https://www.EXAMPLE.com/jobs/1/?utm_source=forged#fragment', vacancy_url_norm: { forged: true },
+    company: 'Orbit Games, Inc.', company_norm: ['forged']
+  });
+  const destination = await emptyServer(t);
+  const result = await destination.api('POST', '/api/v1/import', bundle);
+  assert.equal(result.status, 200, JSON.stringify(result.body));
+  const row = destination.db.prepare('SELECT vacancy_url_norm, company_norm FROM applications').get();
+  assert.equal(row.vacancy_url_norm, 'https://example.com/jobs/1');
+  assert.equal(row.company_norm, 'orbitgames');
+  const duplicate = await destination.api('POST', '/api/v1/applications', applicationInput());
+  assert.equal(duplicate.status, 409);
+  assert.equal(duplicate.body.error.details[0].existing_id, bundle.applications[0].id);
+  const second = await destination.api('POST', '/api/v1/applications', applicationInput(2));
+  assert.equal(second.status, 201);
+  assert.equal(second.body.same_company[0].id, bundle.applications[0].id);
+});
+
+test('normalized URL collisions report both imported application ids and roll back the complete bundle', async (t) => {
+  const source = await applicationTestServer(t);
+  await source.api('POST', '/api/v1/applications', applicationInput());
+  await source.api('POST', '/api/v1/applications', applicationInput(2));
+  const bundle = exportBundle(source.db);
+  Object.assign(bundle.applications[1], { vacancy_url: 'https://www.example.com/jobs/1/?utm_source=x', vacancy_url_norm: 'forged-distinct-url' });
+  const destination = await emptyServer(t);
+  const result = await destination.api('POST', '/api/v1/import', bundle);
+  assert.equal(result.status, 422);
+  const detail = result.body.error.details[0];
+  assert.equal(detail.path, 'applications[1].vacancy_url');
+  assert.equal(detail.code, 'duplicate_vacancy');
+  assert.equal(detail.application_id, bundle.applications[1].id);
+  assert.equal(detail.existing_id, bundle.applications[0].id);
+  for (const table of ['profile', 'profile_revisions', 'applications', 'application_events']) {
+    assert.equal(destination.db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get().n, 0);
+  }
+});
+
+test('import rejects inconsistent document-free applications for every reviewed status and non-skipped apply/maybe', async (t) => {
+  const source = await applicationTestServer(t);
+  await source.api('POST', '/api/v1/applications', applicationInput());
+  const original = exportBundle(source.db);
+  for (const status of ['draft', 'needs_review', 'approved', 'sent', 'interview', 'offer', 'rejected']) {
+    for (const verdict of ['apply', 'maybe']) {
+      const destination = await emptyServer(t);
+      const bundle = structuredClone(original);
+      Object.assign(bundle.applications[0], { status, verdict, resume_content: null, cover_content: null });
+      const result = await destination.api('POST', '/api/v1/import', bundle);
+      assert.equal(result.status, 422, `${status}/${verdict}: ${JSON.stringify(result.body)}`);
+      assert.equal(result.body.error.details[0].path, 'applications[0].resume_content');
+      assert.equal(destination.db.prepare('SELECT COUNT(*) AS n FROM profile').get().n, 0);
+      assert.equal(destination.db.prepare('SELECT COUNT(*) AS n FROM applications').get().n, 0);
+    }
+  }
+  for (const status of ['approved', 'sent', 'interview', 'offer', 'rejected']) {
+    const destination = await emptyServer(t);
+    const bundle = structuredClone(original);
+    Object.assign(bundle.applications[0], { status, verdict: 'skip' });
+    const result = await destination.api('POST', '/api/v1/import', bundle);
+    assert.equal(result.status, 422);
+    assert.equal(result.body.error.details[0].path, 'applications[0].verdict');
+  }
+});
+
+test('document-free skipped imports stay valid but cannot be approved or sent; reviewed resume-only imports are valid', async (t) => {
+  const source = await applicationTestServer(t);
+  await source.api('POST', '/api/v1/applications', applicationInput());
+  const original = exportBundle(source.db);
+  for (const verdict of ['apply', 'maybe', 'skip']) {
+    const destination = await emptyServer(t);
+    const bundle = structuredClone(original);
+    Object.assign(bundle.applications[0], { status: 'skipped', verdict, resume_content: null, cover_content: null });
+    const result = await destination.api('POST', '/api/v1/import', bundle);
+    assert.equal(result.status, 200, JSON.stringify(result.body));
+    for (const status of ['approved', 'sent']) {
+      assert.equal((await destination.api('POST', '/api/v1/applications/1/status', { status })).status, 409);
+    }
+  }
+  const destination = await emptyServer(t);
+  const bundle = structuredClone(original);
+  Object.assign(bundle.applications[0], { status: 'approved', cover_content: null, cover_template: null, pages_cover: null });
+  const result = await destination.api('POST', '/api/v1/import', bundle);
+  assert.equal(result.status, 200, JSON.stringify(result.body));
+  assert.deepEqual(result.body.rendered, [bundle.applications[0].id]);
+  assert.deepEqual(result.body.render_errors, []);
+});
+
+test('export uses one WAL read snapshot when another connection commits between application and event reads', async (t) => {
+  const source = await applicationTestServer(t);
+  await source.api('POST', '/api/v1/applications', applicationInput());
+  const writer = openDb(source.dataDir);
+  t.after(() => writer.close());
+  const row = { ...source.db.prepare('SELECT * FROM applications WHERE id = 1').get(), id: 2, vacancy_url_norm: 'https://example.com/jobs/2', vacancy_url: 'https://example.com/jobs/2' };
+  const prepare = source.db.prepare.bind(source.db);
+  let inserted = false;
+  const mocked = t.mock.method(source.db, 'prepare', (sql) => {
+    const statement = prepare(sql);
+    if (sql !== 'SELECT * FROM applications ORDER BY id') return statement;
+    return { all() {
+      const result = statement.all();
+      if (!inserted) {
+        inserted = true;
+        writer.exec('BEGIN');
+        const columns = Object.keys(row);
+        writer.prepare(`INSERT INTO applications(${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`).run(...Object.values(row));
+        writer.prepare('INSERT INTO application_events(application_id, status) VALUES (?, ?)').run(2, 'draft');
+        writer.exec('COMMIT');
+      }
+      return result;
+    } };
+  });
+  const bundle = exportBundle(source.db);
+  mocked.mock.restore();
+  assert.equal(inserted, true);
+  assert.deepEqual(bundle.applications.map(({ id }) => id), [1]);
+  assert.deepEqual([...new Set(bundle.events.map(({ application_id }) => application_id))], [1]);
+  assert.equal(source.db.prepare('SELECT COUNT(*) AS n FROM applications').get().n, 2);
+  const destination = await emptyServer(t);
+  const result = await destination.api('POST', '/api/v1/import', bundle);
+  assert.equal(result.status, 200, JSON.stringify(result.body));
+});
+
+test('export rolls back its read transaction after a read failure', async (t) => {
+  const source = await applicationTestServer(t);
+  const prepare = source.db.prepare.bind(source.db);
+  const mocked = t.mock.method(source.db, 'prepare', (sql) => {
+    if (sql === 'SELECT * FROM profile_revisions ORDER BY id') throw new Error('Injected export read failure');
+    return prepare(sql);
+  });
+  assert.throws(() => exportBundle(source.db), /Injected export read failure/);
+  mocked.mock.restore();
+  source.db.exec('BEGIN; COMMIT;');
+  assert.deepEqual(exportBundle(source.db).profile, demoExample('profile'));
+});
+
+test('import renders historical PDFs with each recorded profile revision and preserves all revisions', async (t) => {
+  const source = await applicationTestServer(t);
+  const first = (await source.api('POST', '/api/v1/applications', applicationInput())).body;
+  await source.api('POST', `/api/v1/applications/${first.id}/status`, { status: 'sent' });
+  const profile = demoExample('profile');
+  profile.identity.email = 'updated@example.com';
+  saveProfile(source.db, profile);
+  const second = (await source.api('POST', '/api/v1/applications', applicationInput(2))).body;
+  await source.api('POST', `/api/v1/applications/${second.id}/status`, { status: 'approved' });
+  const bundle = exportBundle(source.db);
+  const destination = await emptyServer(t);
+  const result = await destination.api('POST', '/api/v1/import', bundle);
+  assert.equal(result.status, 200, JSON.stringify(result.body));
+  assert.deepEqual(result.body.rendered, [first.id, second.id]);
+  assert.deepEqual(result.body.render_errors, []);
+  for (const [id, expected, absent] of [[first.id, 'alex@example.com', 'updated@example.com'], [second.id, 'updated@example.com', 'alex@example.com']]) {
+    for (const kind of ['resume', 'cover']) {
+      const pdf = readFileSync(join(destination.dataDir, 'files', String(id), `${kind}.pdf`), 'utf8');
+      assert.ok(pdf.includes(expected), pdf);
+      assert.equal(pdf.includes(absent), false);
+    }
+  }
+  assert.deepEqual(comparable(exportBundle(destination.db)), comparable(bundle));
+});
+
+test('missing historical profile revisions produce per-application render errors without substituting current contacts', async (t) => {
+  const source = await applicationTestServer(t);
+  await source.api('POST', '/api/v1/applications', applicationInput());
+  const original = exportBundle(source.db);
+  for (const revisionId of [null, 999]) {
+    const destination = await emptyServer(t);
+    const bundle = structuredClone(original);
+    bundle.applications[0].profile_revision_id = revisionId;
+    const result = await destination.api('POST', '/api/v1/import', bundle);
+    assert.equal(result.status, 200, JSON.stringify(result.body));
+    assert.deepEqual(result.body.rendered, []);
+    assert.equal(result.body.render_errors[0].id, bundle.applications[0].id);
+    assert.equal(result.body.render_errors[0].details[0].path, 'profile_revision_id');
+    assert.equal(result.body.render_errors[0].details[0].code, 'profile_revision_missing');
+    const application = await destination.api('GET', '/api/v1/applications/1');
+    assert.equal(application.body.profile_revision_id, revisionId);
+    assert.equal(application.body.files.resume_pdf, null);
+    assert.equal(application.body.files.cover_pdf, null);
+  }
 });

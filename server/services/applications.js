@@ -1,5 +1,4 @@
-import { randomUUID } from 'node:crypto';
-import { mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { hasScope } from '../auth.js';
 import { ApiError, badRequest, conflict, forbidden, notFound, renderFailed, validationFailed } from '../errors.js';
@@ -8,7 +7,7 @@ import { buildContext } from '../render/context.js';
 import { renderHtml, renderPdf as defaultRenderPdf } from '../render/index.js';
 import { upgradeDocument, validateDocument } from '../upgrade.js';
 import { loadSchema, validate } from '../validate.js';
-import { getProfile } from './profile.js';
+import { getProfile, getRevision } from './profile.js';
 import { formatRef, getTemplate, listTemplates, parseRef } from './templates.js';
 
 const statuses = ['draft', 'needs_review', 'approved', 'sent', 'interview', 'offer', 'rejected', 'skipped'];
@@ -101,6 +100,11 @@ async function renderDocuments(db, normalized, profile, { renderPdf = defaultRen
   for (const kind of documentKinds) {
     const document = normalized[kind];
     if (!document) continue;
+    const issues = validate(loadSchema(kind === 'resume' ? 'content' : 'cover'), document.content, { rootPath: `${kind}.content` });
+    if (issues.length) {
+      errors.push(...issues);
+      continue;
+    }
     let template;
     try {
       template = resolveTemplate(db, document.template, kind);
@@ -144,10 +148,12 @@ export async function prepare(db, input, { renderPdf = defaultRenderPdf, chrome,
     const document = incoming?.[kind];
     if (!document || typeof document !== 'object' || Array.isArray(document)) continue;
     let doc;
+    let validDocument = false;
     try {
       const result = validateDocument(kind === 'resume' ? 'content' : 'cover', document.content, { rootPath: `${kind}.content` });
       doc = result.doc;
       errors.push(...result.errors);
+      validDocument = result.errors.length === 0;
     } catch (error) {
       if (!(error instanceof ApiError)) throw error;
       errors.push(...error.details);
@@ -165,7 +171,7 @@ export async function prepare(db, input, { renderPdf = defaultRenderPdf, chrome,
       errors.push(...prefixed(result.errors, kind));
       warnings.push(...prefixed(result.warnings, kind));
     }
-    normalized[kind] = doc && template ? { template: formatRef(template.id, template.version), content: doc } : null;
+    normalized[kind] = validDocument && template ? { template: formatRef(template.id, template.version), content: doc } : null;
   }
   const rendered = render ? await renderDocuments(db, normalized, profile.doc, { renderPdf, chrome }) : { pages: {}, files: {}, errors: [] };
   errors.push(...rendered.errors);
@@ -176,7 +182,7 @@ export async function prepare(db, input, { renderPdf = defaultRenderPdf, chrome,
   }
   normalized.verdict ??= 'apply';
   return {
-    normalized, warnings, pages: rendered.pages, files: rendered.files,
+    normalized, warnings, pages: rendered.pages, files: rendered.files, profileRevisionId: profile.revisionId,
     duplicate: duplicateFor(db, normalizeUrl(normalized.vacancy.url)),
     same_company: sameCompany(db, normalizeCompany(normalized.vacancy.company))
   };
@@ -201,7 +207,13 @@ function event(db, id, status, tokenId, note = null) {
 }
 
 function pdfPath(dataDir, id, kind) {
-  return dataDir ? join(dataDir, 'files', String(id), `${kind}.pdf`) : null;
+  return dataDir ? join(applicationDirectory(dataDir, id), `${kind}.pdf`) : null;
+}
+
+function applicationDirectory(dataDir, id) {
+  const directory = join(dataDir, 'files', String(id));
+  if (!existsSync(directory) && existsSync(`${directory}.old`)) renameSync(`${directory}.old`, directory);
+  return directory;
 }
 
 function hasPdf(dataDir, id, kind) {
@@ -214,24 +226,77 @@ function hasPdf(dataDir, id, kind) {
   }
 }
 
-function storeFiles(dataDir, id, files) {
+function stageFiles(dataDir, id, files) {
   if (!dataDir) throw new Error('Application dataDir is required. Pass config.dataDir to the application service.');
-  const directory = join(dataDir, 'files', String(id));
-  mkdirSync(directory, { recursive: true });
+  const directory = applicationDirectory(dataDir, id);
+  rmSync(`${directory}.new`, { recursive: true, force: true });
+  mkdirSync(`${directory}.new`, { recursive: true });
   for (const kind of documentKinds) {
-    const path = pdfPath(dataDir, id, kind);
-    if (files[kind]) {
-      const temporary = `${path}.${randomUUID()}.tmp`;
-      try {
-        writeFileSync(temporary, files[kind]);
-        renameSync(temporary, path);
-      } finally {
-        rmSync(temporary, { force: true });
-      }
-    } else {
-      rmSync(path, { force: true });
-    }
+    if (files[kind]) writeFileSync(join(`${directory}.new`, `${kind}.pdf`), files[kind]);
   }
+}
+
+function publishFiles(dataDir, id) {
+  const directory = applicationDirectory(dataDir, id);
+  rmSync(`${directory}.old`, { recursive: true, force: true });
+  const hadFiles = existsSync(directory);
+  if (hadFiles) renameSync(directory, `${directory}.old`);
+  try {
+    renameSync(`${directory}.new`, directory);
+  } catch (error) {
+    if (hadFiles) renameSync(`${directory}.old`, directory);
+    throw error;
+  }
+  try {
+    rmSync(`${directory}.old`, { recursive: true, force: true });
+  } catch {
+    // An obsolete directory is harmless; the next publication removes it.
+  }
+}
+
+function persistFiles(db, id, files, { dataDir }, save) {
+  let committed = false;
+  let transactionOpen = false;
+  let previous;
+  let lastEventId;
+  try {
+    if (id) stageFiles(dataDir, id, files);
+    db.exec('SAVEPOINT application_files');
+    transactionOpen = true;
+    previous = id ? rowFor(db, id) : null;
+    lastEventId = id ? db.prepare('SELECT MAX(id) AS id FROM application_events WHERE application_id = ?').get(Number(id)).id ?? 0 : 0;
+    id = save();
+    if (!previous) stageFiles(dataDir, id, files);
+    db.exec('RELEASE application_files');
+    transactionOpen = false;
+    committed = true;
+    publishFiles(dataDir, id);
+  } catch (error) {
+    if (transactionOpen) {
+      db.exec('ROLLBACK TO application_files; RELEASE application_files');
+    } else if (committed) {
+      // A failed directory swap restored the old files; restore their database state too.
+      db.exec('SAVEPOINT restore_application');
+      try {
+        db.prepare('DELETE FROM application_events WHERE application_id = ? AND id > ?').run(Number(id), lastEventId);
+        if (previous) {
+          const columns = Object.keys(previous).filter((key) => key !== 'id');
+          db.prepare(`UPDATE applications SET ${columns.map((key) => `${key} = ?`).join(', ')} WHERE id = ?`)
+            .run(...columns.map((key) => previous[key]), Number(id));
+        } else {
+          db.prepare('DELETE FROM applications WHERE id = ?').run(Number(id));
+        }
+        db.exec('RELEASE restore_application');
+      } catch (restoreError) {
+        db.exec('ROLLBACK TO restore_application; RELEASE restore_application');
+        throw restoreError;
+      }
+    }
+    throw error;
+  } finally {
+    if (dataDir && id) rmSync(join(dataDir, 'files', `${id}.new`), { recursive: true, force: true });
+  }
+  return id;
 }
 
 export function getApplication(db, id, { dataDir } = {}) {
@@ -260,7 +325,7 @@ function duplicateError(duplicate) {
   }]);
 }
 
-function valuesFor(db, prepared) {
+function valuesFor(prepared) {
   const { normalized: input, warnings, pages } = prepared;
   const vacancy = input.vacancy;
   return {
@@ -271,7 +336,7 @@ function valuesFor(db, prepared) {
     track_id: input.track_id ?? null, resume_template: input.resume?.template ?? null, cover_template: input.cover?.template ?? null,
     resume_content: input.resume ? JSON.stringify(input.resume.content) : null, cover_content: input.cover ? JSON.stringify(input.cover.content) : null,
     notes: input.notes ?? '', warnings: JSON.stringify(warnings), pages_resume: pages.resume ?? null, pages_cover: pages.cover ?? null,
-    profile_revision_id: getProfile(db).revisionId
+    profile_revision_id: prepared.profileRevisionId
   };
 }
 
@@ -280,18 +345,16 @@ export async function createApplication(db, input, options = {}) {
   const duplicate = duplicateFor(db, normalizeUrl(prepared.normalized.vacancy.url));
   if (duplicate) throw duplicateError(duplicate);
   const now = new Date().toISOString();
-  const values = { ...valuesFor(db, prepared), status: prepared.normalized.verdict === 'skip' ? 'skipped' : 'draft', created_at: now, updated_at: now, created_by_token_id: options.token?.id ?? null };
+  const values = { ...valuesFor(prepared), status: prepared.normalized.verdict === 'skip' ? 'skipped' : 'draft', created_at: now, updated_at: now, created_by_token_id: options.token?.id ?? null };
   const columns = Object.keys(values);
   let id;
-  db.exec('SAVEPOINT create_application');
   try {
-    id = Number(db.prepare(`INSERT INTO applications(${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`).run(...Object.values(values)).lastInsertRowid);
-    storeFiles(options.dataDir, id, prepared.files);
-    event(db, id, values.status, options.token?.id);
-    db.exec('RELEASE create_application');
+    id = persistFiles(db, null, prepared.files, options, () => {
+      const createdId = Number(db.prepare(`INSERT INTO applications(${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`).run(...Object.values(values)).lastInsertRowid);
+      event(db, createdId, values.status, options.token?.id);
+      return createdId;
+    });
   } catch (error) {
-    db.exec('ROLLBACK TO create_application; RELEASE create_application');
-    if (id && options.dataDir) rmSync(join(options.dataDir, 'files', String(id)), { recursive: true, force: true });
     const collision = duplicateFor(db, values.vacancy_url_norm);
     if (collision) throw duplicateError(collision);
     throw error;
@@ -305,20 +368,14 @@ export async function updateApplication(db, id, input, options = {}) {
   const prepared = await prepare(db, input, options);
   const duplicate = duplicateFor(db, normalizeUrl(prepared.normalized.vacancy.url), Number(id));
   if (duplicate) throw duplicateError(duplicate);
-  // Recheck after the asynchronous render, in case a reviewer changed the status meanwhile.
-  const latest = rowFor(db, id);
-  if (!['draft', 'needs_review'].includes(latest.status)) throw conflict(`Application #${id} changed status during rendering. Return it to draft before editing.`);
-  const values = { ...valuesFor(db, prepared), status: prepared.normalized.verdict === 'skip' ? 'skipped' : latest.status, updated_at: new Date().toISOString() };
-  db.exec('SAVEPOINT update_application');
-  try {
+  persistFiles(db, id, prepared.files, options, () => {
+    const latest = rowFor(db, id);
+    if (!['draft', 'needs_review'].includes(latest.status)) throw conflict(`Application #${id} changed status during rendering. Return it to draft before editing.`);
+    const values = { ...valuesFor(prepared), status: prepared.normalized.verdict === 'skip' ? 'skipped' : latest.status, updated_at: new Date().toISOString() };
     db.prepare(`UPDATE applications SET ${Object.keys(values).map((column) => `${column} = ?`).join(', ')} WHERE id = ?`).run(...Object.values(values), Number(id));
-    storeFiles(options.dataDir, id, prepared.files);
     event(db, Number(id), 'updated', options.token?.id);
-    db.exec('RELEASE update_application');
-  } catch (error) {
-    db.exec('ROLLBACK TO update_application; RELEASE update_application');
-    throw error;
-  }
+    return Number(id);
+  });
   return getApplication(db, id, options);
 }
 
@@ -353,6 +410,26 @@ export function listApplications(db, query = {}) {
   return { items, total: filtered.length, counts };
 }
 
+export function applicationDocumentErrors(row, { status = row.status, dataDir, checkFiles = false, path = '' } = {}) {
+  const errors = [];
+  const at = (key) => path ? `${path}.${key}` : key;
+  const reviewed = ['approved', 'sent', 'interview', 'offer', 'rejected'].includes(status);
+  if (reviewed && row.verdict === 'skip') {
+    errors.push({ path: at('verdict'), code: 'documents_required', message: `Application #${row.id} has verdict skip. Move it to draft and replace its verdict and resume before setting ${status}.` });
+  }
+  if ((reviewed || (['apply', 'maybe'].includes(row.verdict) && status !== 'skipped')) && !row.resume_content) {
+    errors.push({ path: at('resume_content'), code: 'required', message: `Application #${row.id} requires resume content for ${status} with verdict ${row.verdict}. Add a resume in draft, or use status skipped.` });
+  }
+  if (checkFiles && reviewed) {
+    for (const kind of documentKinds) {
+      if ((kind === 'resume' || row.cover_content) && !hasPdf(dataDir, row.id, kind)) {
+        errors.push({ path: at(`files.${kind}_pdf`), code: 'pdf_required', message: `Application #${row.id} requires ${kind}.pdf before ${status}. Move it to draft, add the document and rerender before changing status.` });
+      }
+    }
+  }
+  return errors;
+}
+
 export function setStatus(db, id, input, { token, dataDir } = {}) {
   const errors = validate({ type: 'object', required: ['status'], properties: { status: { enum: statuses }, note: { type: 'string' } }, additionalProperties: false }, input);
   if (errors.length) throw validationFailed('Invalid status body. Provide a known status and an optional string note.', errors);
@@ -363,10 +440,8 @@ export function setStatus(db, id, input, { token, dataDir } = {}) {
     throw conflict(`Application #${id} cannot move from ${row.status} to ${input.status} with this token. Allowed next statuses: ${(agentTransitions[row.status] ?? []).join(', ') || '(none)'}. An owner with approve may choose another status.`);
   }
   if (['approved', 'sent'].includes(input.status)) {
-    if (row.verdict === 'skip') throw conflict(`Application #${id} has verdict skip. Replace its content and verdict in draft before approving or sending it.`);
-    if (row.resume_content && (!hasPdf(dataDir, id, 'resume') || !row.cover_content || !hasPdf(dataDir, id, 'cover'))) {
-      throw conflict(`Application #${id} requires both resume.pdf and cover.pdf before ${input.status}. Add both documents and rerender before changing status.`);
-    }
+    const documentErrors = applicationDocumentErrors(row, { status: input.status, dataDir, checkFiles: true });
+    if (documentErrors.length) throw conflict(`Application #${id} cannot be ${input.status}. Correct the document problems in details while it is a draft.`, documentErrors);
   }
   db.exec('SAVEPOINT set_status');
   try {
@@ -383,7 +458,16 @@ export function setStatus(db, id, input, { token, dataDir } = {}) {
 // Import restores derived files even for historical, already-sent applications.
 export async function restoreApplicationFiles(db, id, options = {}) {
   const row = rowFor(db, id);
-  const profile = getProfile(db);
+  let profile;
+  if (options.preserveProfileRevision) {
+    const doc = row.profile_revision_id == null ? null : getRevision(db, row.profile_revision_id);
+    if (!doc) throw renderFailed(`Application #${id} references unavailable profile revision ${row.profile_revision_id}. Restore that profile_revisions entry from the original export before rendering.`, [{
+      path: 'profile_revision_id', code: 'profile_revision_missing', message: `Restore profile revision ${row.profile_revision_id} for application #${id}; another profile cannot reproduce its contacts.`
+    }]);
+    profile = { doc, revisionId: row.profile_revision_id };
+  } else {
+    profile = getProfile(db);
+  }
   if (!profile) throw new ApiError(422, 'profile_missing', 'No profile exists. Import or save a profile before rendering applications.');
   const normalized = { language: row.language };
   for (const kind of documentKinds) {
@@ -395,20 +479,25 @@ export async function restoreApplicationFiles(db, id, options = {}) {
   }
   const result = await renderDocuments(db, normalized, profile.doc, options);
   if (result.errors.length) throw renderFailed('Application could not be rerendered. Correct the rendering problems in details and retry.', result.errors);
-  const latest = rowFor(db, id);
-  if (options.checkEditable && ['sent', 'interview', 'offer', 'rejected'].includes(latest.status)) throw conflict(`Application #${id} was sent while rendering. Its PDFs cannot be changed.`);
-  if (['resume_content', 'cover_content', 'resume_template', 'cover_template', 'language'].some((key) => latest[key] !== row[key])) {
-    throw conflict(`Application #${id} changed content or templates during rendering. Retry rerender with the latest stored content.`);
-  }
-  storeFiles(options.dataDir, id, result.files);
-  db.prepare('UPDATE applications SET resume_template = ?, cover_template = ?, pages_resume = ?, pages_cover = ?, profile_revision_id = ?, updated_at = ? WHERE id = ?')
-    .run(normalized.resume?.template ?? null, normalized.cover?.template ?? null, result.pages.resume ?? null, result.pages.cover ?? null, options.preserveUpdatedAt ? row.profile_revision_id : getProfile(db).revisionId, options.preserveUpdatedAt ? row.updated_at : new Date().toISOString(), Number(id));
+  persistFiles(db, id, result.files, options, () => {
+    const latest = rowFor(db, id);
+    if (options.checkEditable) assertEditable(latest);
+    if (['resume_content', 'cover_content', 'resume_template', 'cover_template', 'language', 'profile_revision_id'].some((key) => latest[key] !== row[key])) {
+      throw conflict(`Application #${id} changed content or templates during rendering. Retry rerender with the latest stored content.`);
+    }
+    db.prepare('UPDATE applications SET resume_template = ?, cover_template = ?, pages_resume = ?, pages_cover = ?, profile_revision_id = ?, updated_at = ? WHERE id = ?')
+      .run(normalized.resume?.template ?? null, normalized.cover?.template ?? null, result.pages.resume ?? null, result.pages.cover ?? null, profile.revisionId, options.preserveUpdatedAt ? row.updated_at : new Date().toISOString(), Number(id));
+    return Number(id);
+  });
   return getApplication(db, id, options);
 }
 
+function assertEditable(row) {
+  if (!['draft', 'needs_review'].includes(row.status)) throw conflict(`Application #${row.id} is ${row.status}. Rerender requires draft or needs_review; ask an owner to move it to draft first.`);
+}
+
 export async function rerenderApplication(db, id, options = {}) {
-  const row = rowFor(db, id);
-  if (['sent', 'interview', 'offer', 'rejected'].includes(row.status)) throw conflict(`Application #${id} is ${row.status}. Rerender is refused after sent; keep the filed PDFs unchanged.`);
+  assertEditable(rowFor(db, id));
   return restoreApplicationFiles(db, id, { ...options, checkEditable: true });
 }
 
@@ -447,7 +536,6 @@ export function applicationFile(db, id, name, { dataDir, download = false } = {}
 export function deleteApplication(db, id, { dataDir } = {}) {
   rowFor(db, id);
   if (!dataDir) throw new Error('Application dataDir is required to delete derived files. Pass config.dataDir.');
-  rmSync(join(dataDir, 'files', String(id)), { recursive: true, force: true });
   db.exec('SAVEPOINT delete_application');
   try {
     db.prepare('DELETE FROM application_events WHERE application_id = ?').run(Number(id));
@@ -457,5 +545,6 @@ export function deleteApplication(db, id, { dataDir } = {}) {
     db.exec('ROLLBACK TO delete_application; RELEASE delete_application');
     throw error;
   }
+  rmSync(join(dataDir, 'files', String(id)), { recursive: true, force: true });
   return { ok: true };
 }

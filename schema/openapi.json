@@ -1801,7 +1801,7 @@
       "post": {
         "operationId": "post_applications_id_rerender",
         "summary": "Rerender with current or explicitly requested template version",
-        "description": "Uses current profile identity. Refused for sent/interview/offer/rejected; page limits still apply. Required scope: write:applications.",
+        "description": "Uses current profile identity. Allowed only while the status is draft or needs_review (409 otherwise); page limits still apply. Required scope: write:applications.",
         "x-scope": "write:applications",
         "parameters": [
           {

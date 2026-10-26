@@ -234,7 +234,7 @@ Presets: `agent` = read + write:applications + write:tracks + write:templates. `
 | GET | /applications/:id | read | full record with `same_company` (earlier applications to the same company) |
 | PUT | /applications/:id | write:applications | replace content while status is `draft` or `needs_review` |
 | POST | /applications/:id/status | write:applications / approve | `{status, note}` (see 7.2) |
-| POST | /applications/:id/rerender | write:applications | render again (e.g. after a template change) |
+| POST | /applications/:id/rerender | write:applications | render again (e.g. after a template change); only while `draft` or `needs_review` |
 | GET | /applications/:id/files/:name | read | `resume.pdf`, `cover.pdf`, `cover.txt`, `vacancy.md`, `resume.html` |
 | DELETE | /applications/:id | approve | |
 | GET | /export | admin | JSON bundle of everything except files |

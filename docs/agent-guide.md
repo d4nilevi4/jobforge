@@ -309,7 +309,7 @@ All paths below are relative to `/api/v1`. `:id` and `:name` are path parameters
 | GET, PUT | `/applications/:id` | read / write:applications; detail / full replacement in draft/review. |
 | DELETE | `/applications/:id` | approve; delete. |
 | POST | `/applications/:id/status` | write:applications for agent statuses; approve for others; `{status,note?}`. |
-| POST | `/applications/:id/rerender` | write:applications; current template or `?version=1`. |
+| POST | `/applications/:id/rerender` | write:applications; only while the status is `draft` or `needs_review`; current template or `?version=1`. |
 | GET | `/applications/:id/files/:name` | read; resume.pdf, cover.pdf, cover.txt, vacancy.md, resume.html; `?dl=1` downloads PDFs. |
 | GET | `/export` | admin; export bundle. |
 | POST | `/import` | admin; import into empty instance. |

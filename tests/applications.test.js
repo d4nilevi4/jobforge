@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import fs, { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 import { join } from 'node:path';
 import { normalizeCompany, normalizeUrl } from '../server/services/applications.js';
-import { applicationInput, applicationTestServer, fakeApplicationPdf, startApplicationServer } from './helpers.js';
+import { saveProfile } from '../server/services/profile.js';
+import { applicationInput, applicationTestServer, demoExample, fakeApplicationPdf, startApplicationServer } from './helpers.js';
 
 const root = '/api/v1/applications';
 
@@ -26,8 +28,12 @@ for (const [value, expected] of [
   test(`normalizeCompany: ${String(value)}`, () => assert.equal(normalizeCompany(value), expected));
 }
 
-test('check merges request schema, document schema, guard, and both overflows without storing', async (t) => {
-  const app = await applicationTestServer(t, { deps: { renderPdf: async (input) => ({ ...await fakeApplicationPdf(input), pages: 3 }) } });
+test('check merges schema and guard errors with overflow from schema-valid documents only', async (t) => {
+  const rendered = [];
+  const app = await applicationTestServer(t, { deps: { renderPdf: async (input) => {
+    rendered.push(input.meta.kind);
+    return { ...await fakeApplicationPdf(input), pages: 3 };
+  } } });
   const input = applicationInput();
   input.score = 2;
   delete input.resume.content.headline;
@@ -37,9 +43,11 @@ test('check merges request schema, document schema, guard, and both overflows wi
   assert.equal(result.status, 422);
   assert.equal(result.body.error.code, 'validation_failed');
   const issues = result.body.error.details;
-  for (const [path, code] of [['score', 'maximum'], ['resume.content.headline', 'required'], ['resume.content.experience[0].company', 'unknown_employer'], ['cover.content.text', 'forbidden_pattern'], ['resume.content', 'page_overflow'], ['cover.content', 'page_overflow']]) {
+  for (const [path, code] of [['score', 'maximum'], ['resume.content.headline', 'required'], ['resume.content.experience[0].company', 'unknown_employer'], ['cover.content.text', 'forbidden_pattern'], ['cover.content', 'page_overflow']]) {
     assert.ok(issues.some((issue) => issue.path === path && issue.code === code), JSON.stringify(issues));
   }
+  assert.deepEqual(rendered, ['cover']);
+  assert.equal(issues.some((issue) => issue.path === 'resume.content' && issue.code === 'page_overflow'), false);
   assert.equal(app.db.prepare('SELECT COUNT(*) AS n FROM applications').get().n, 0);
   assert.equal(existsSync(join(app.dataDir, 'files')), false);
 });
@@ -193,12 +201,13 @@ test('agents follow the graph, approve scope is required, and owners may choose 
   assert.match(denied.body.error.message, /write:applications/);
 });
 
-test('approval requires both PDFs and missing files can be restored before sending', async (t) => {
+test('approval requires a resume PDF and a cover PDF only when cover content exists', async (t) => {
   const app = await applicationTestServer(t);
   const input = applicationInput();
   delete input.cover;
   const id = (await app.api('POST', root, input)).body.id;
-  assert.equal((await app.api('POST', `${root}/${id}/status`, { status: 'approved' })).status, 409);
+  assert.equal((await app.api('POST', `${root}/${id}/status`, { status: 'approved' })).status, 200);
+  assert.equal((await app.api('POST', `${root}/${id}/status`, { status: 'draft' })).status, 200);
   await app.api('PUT', `${root}/${id}`, applicationInput());
   rmSync(join(app.dataDir, 'files', String(id), 'cover.pdf'));
   assert.equal((await app.api('POST', `${root}/${id}/status`, { status: 'sent' })).status, 409);
@@ -303,4 +312,224 @@ test('rerender cannot replace PDFs after a concurrent content update', async (t)
   release();
   assert.equal((await pending).status, 409);
   assert.match(readFileSync(join(app.dataDir, 'files', String(id), 'resume.pdf'), 'utf8'), /Latest Unity Engineer/);
+});
+
+function storedApplication(app, id) {
+  return {
+    row: app.db.prepare('SELECT * FROM applications WHERE id = ?').get(id),
+    events: app.db.prepare('SELECT * FROM application_events WHERE application_id = ? ORDER BY id').all(id),
+    files: Object.fromEntries(['resume', 'cover'].map((kind) => [kind, readFileSync(join(app.dataDir, 'files', String(id), `${kind}.pdf`))]))
+  };
+}
+
+function failFileOperation(t, operation, predicate) {
+  const original = fs[operation];
+  const mocked = t.mock.method(fs, operation, (...args) => {
+    if (predicate(...args)) throw new Error(`Injected ${operation} failure`);
+    return original(...args);
+  });
+  syncBuiltinESMExports();
+  t.after(() => {
+    mocked.mock.restore();
+    syncBuiltinESMExports();
+  });
+}
+
+test('rerender locks every noneditable status for owners and agents without changing PDFs', async (t) => {
+  let renders = 0;
+  const app = await applicationTestServer(t, { deps: { renderPdf: async (input) => { renders++; return fakeApplicationPdf(input); } } });
+  const agent = app.makeToken('agent');
+  const id = (await app.api('POST', root, applicationInput())).body.id;
+  const before = storedApplication(app, id).files;
+  for (const status of ['approved', 'sent', 'interview', 'offer', 'rejected', 'skipped']) {
+    assert.equal((await app.api('POST', `${root}/${id}/status`, { status })).status, 200);
+    for (const token of [app.token, agent]) {
+      const result = await app.api('POST', `${root}/${id}/rerender`, undefined, { token });
+      assert.equal(result.status, 409);
+      assert.match(result.body.error.message, /draft or needs_review/);
+      assert.deepEqual(storedApplication(app, id).files, before);
+    }
+  }
+  assert.equal(renders, 2);
+});
+
+test('approval during asynchronous PUT or rerender keeps the approved row and PDFs intact', async (t) => {
+  let approveDuringRender = false;
+  let app;
+  let id;
+  app = await applicationTestServer(t, { deps: { renderPdf: async (input) => {
+    if (approveDuringRender) {
+      approveDuringRender = false;
+      assert.equal((await app.api('POST', `${root}/${id}/status`, { status: 'approved' })).status, 200);
+    }
+    return fakeApplicationPdf(input);
+  } } });
+  id = (await app.api('POST', root, applicationInput())).body.id;
+  const files = storedApplication(app, id).files;
+  for (const method of ['PUT', 'rerender']) {
+    assert.equal((await app.api('POST', `${root}/${id}/status`, { status: 'draft' })).status, 200);
+    const row = storedApplication(app, id).row;
+    approveDuringRender = true;
+    const replacement = applicationInput();
+    replacement.resume.content.headline = 'Changed during review';
+    const response = method === 'PUT'
+      ? await app.api('PUT', `${root}/${id}`, replacement)
+      : await app.api('POST', `${root}/${id}/rerender`);
+    assert.equal(response.status, 409);
+    const after = storedApplication(app, id);
+    assert.equal(after.row.status, 'approved');
+    assert.equal(after.row.resume_content, row.resume_content);
+    assert.equal(after.events.at(-1).status, 'approved');
+    assert.deepEqual(after.files, files);
+    assert.equal(existsSync(join(app.dataDir, 'files', `${id}.new`)), false);
+  }
+});
+
+for (const operation of ['PUT', 'rerender', 'DELETE']) {
+  test(`${operation} database failure preserves the complete row, events and PDF set`, async (t) => {
+    let generation = 'old';
+    const app = await applicationTestServer(t, { deps: { renderPdf: async (input) => {
+      const result = await fakeApplicationPdf(input);
+      return { ...result, pdf: Buffer.concat([result.pdf, Buffer.from(generation)]) };
+    } } });
+    const id = (await app.api('POST', root, applicationInput())).body.id;
+    const before = storedApplication(app, id);
+    generation = 'new';
+    const trigger = operation === 'PUT' ? 'BEFORE INSERT ON application_events'
+      : operation === 'DELETE' ? 'BEFORE DELETE ON applications' : 'BEFORE UPDATE ON applications';
+    app.db.exec(`CREATE TRIGGER fail_application ${trigger} BEGIN SELECT RAISE(ABORT, 'Injected database failure'); END;`);
+    const result = operation === 'PUT' ? await app.api('PUT', `${root}/${id}`, applicationInput(1, { notes: 'Replacement notes' }))
+      : operation === 'DELETE' ? await app.api('DELETE', `${root}/${id}`) : await app.api('POST', `${root}/${id}/rerender`);
+    assert.equal(result.status, 500);
+    assert.deepEqual(storedApplication(app, id), before);
+    assert.equal(existsSync(join(app.dataDir, 'files', `${id}.new`)), false);
+  });
+}
+
+for (const operation of ['PUT', 'rerender']) {
+  for (const failure of ['second file', 'directory swap']) {
+    test(`${operation} ${failure} failure preserves both stores and removes staging files`, async (t) => {
+      let generation = 'old';
+      const app = await applicationTestServer(t, { deps: { renderPdf: async (input) => {
+        const result = await fakeApplicationPdf(input);
+        return { ...result, pdf: Buffer.concat([result.pdf, Buffer.from(generation)]) };
+      } } });
+      const id = (await app.api('POST', root, applicationInput())).body.id;
+      const before = storedApplication(app, id);
+      generation = 'new';
+      const directory = join(app.dataDir, 'files', String(id));
+      if (failure === 'second file') {
+        failFileOperation(t, 'writeFileSync', (path) => String(path).startsWith(directory) && String(path).includes('/cover.pdf'));
+      } else {
+        failFileOperation(t, 'renameSync', (source, destination) => source === `${directory}.new` && destination === directory);
+      }
+      const input = applicationInput(1, { notes: 'Replacement notes' });
+      input.resume.content.headline = 'Changed resume';
+      const result = operation === 'PUT' ? await app.api('PUT', `${root}/${id}`, input) : await app.api('POST', `${root}/${id}/rerender`);
+      assert.equal(result.status, 500);
+      assert.deepEqual(storedApplication(app, id), before);
+      assert.equal(existsSync(`${directory}.new`), false);
+      assert.equal(existsSync(`${directory}.old`), false);
+    });
+  }
+}
+
+test('leftover staging and obsolete directories do not affect reads or replacement', async (t) => {
+  const app = await applicationTestServer(t);
+  const id = (await app.api('POST', root, applicationInput())).body.id;
+  const directory = join(app.dataDir, 'files', String(id));
+  const original = storedApplication(app, id).files;
+  for (const suffix of ['new', 'old']) {
+    mkdirSync(`${directory}.${suffix}`);
+    writeFileSync(join(`${directory}.${suffix}`, 'resume.pdf'), 'stale');
+  }
+  assert.equal((await app.api('GET', `${root}/${id}/files/resume.pdf`, undefined, { raw: true })).body, original.resume.toString());
+  assert.equal((await app.api('PUT', `${root}/${id}`, applicationInput())).status, 200);
+  assert.deepEqual(storedApplication(app, id).files, original);
+  assert.equal(existsSync(`${directory}.new`), false);
+  assert.equal(existsSync(`${directory}.old`), false);
+});
+
+test('approval and sending reject missing resume content or PDFs without adding status events', async (t) => {
+  const app = await applicationTestServer(t);
+  const id = (await app.api('POST', root, applicationInput())).body.id;
+  app.db.prepare('UPDATE applications SET resume_content = NULL, cover_content = NULL WHERE id = ?').run(id);
+  for (const status of ['approved', 'sent']) {
+    const before = storedApplication(app, id);
+    const result = await app.api('POST', `${root}/${id}/status`, { status });
+    assert.equal(result.status, 409);
+    assert.ok(result.body.error.details.some(({ path }) => path === 'resume_content'));
+    assert.deepEqual(storedApplication(app, id), before);
+  }
+  await app.api('PUT', `${root}/${id}`, applicationInput());
+  rmSync(join(app.dataDir, 'files', String(id), 'resume.pdf'));
+  for (const status of ['approved', 'sent']) {
+    const result = await app.api('POST', `${root}/${id}/status`, { status });
+    assert.equal(result.status, 409);
+    assert.ok(result.body.error.details.some(({ path }) => path === 'files.resume_pdf'));
+  }
+});
+
+for (const operation of ['create', 'PUT', 'rerender']) {
+  test(`${operation} stores the profile revision captured before asynchronous rendering`, async (t) => {
+    let changeProfile = false;
+    let app;
+    app = await applicationTestServer(t, { deps: { renderPdf: async (input) => {
+      if (changeProfile) {
+        changeProfile = false;
+        const profile = demoExample('profile');
+        profile.identity.email = 'updated@example.com';
+        saveProfile(app.db, profile);
+      }
+      return fakeApplicationPdf(input);
+    } } });
+    const id = operation === 'create' ? null : (await app.api('POST', root, applicationInput())).body.id;
+    changeProfile = true;
+    const result = operation === 'create' ? await app.api('POST', root, applicationInput())
+      : operation === 'PUT' ? await app.api('PUT', `${root}/${id}`, applicationInput()) : await app.api('POST', `${root}/${id}/rerender`);
+    assert.equal(result.status, operation === 'create' ? 201 : 200);
+    assert.equal(result.body.profile_revision_id, 1);
+    assert.equal(app.db.prepare('SELECT MAX(id) AS id FROM profile_revisions').get().id, 2);
+    const stored = storedApplication(app, result.body.id);
+    for (const pdf of Object.values(stored.files)) {
+      assert.match(pdf.toString(), /alex@example\.com/);
+      assert.doesNotMatch(pdf.toString(), /updated@example\.com/);
+    }
+  });
+}
+
+test('schema-invalid nested documents return merged 422 details before rendering in check, create and PUT', async (t) => {
+  let renders = 0;
+  const app = await applicationTestServer(t, { deps: { renderPdf: async (input) => { renders++; return fakeApplicationPdf(input); } } });
+  const id = (await app.api('POST', root, applicationInput())).body.id;
+  const before = storedApplication(app, id);
+  const input = applicationInput();
+  input.score = 2;
+  input.resume.content.projects = [null];
+  input.resume.content.experience[0].company = 'Invented Employer';
+  input.cover.content.text = null;
+  renders = 0;
+  for (const [method, path] of [['POST', '/api/v1/check'], ['POST', root], ['PUT', `${root}/${id}`]]) {
+    const result = await app.api(method, path, input);
+    assert.equal(result.status, 422);
+    assert.equal(result.body.error.code, 'validation_failed');
+    for (const expected of ['score', 'resume.content.projects[0]', 'resume.content.experience[0].company', 'cover.content.text']) {
+      assert.ok(result.body.error.details.some(({ path }) => path === expected), JSON.stringify(result.body.error.details));
+    }
+  }
+  assert.equal(renders, 0);
+  assert.deepEqual(storedApplication(app, id), before);
+  assert.equal(app.db.prepare('SELECT COUNT(*) AS n FROM applications').get().n, 1);
+});
+
+test('DELETE commits before file cleanup, so cleanup failure leaves only harmless garbage', async (t) => {
+  const app = await applicationTestServer(t);
+  const id = (await app.api('POST', root, applicationInput())).body.id;
+  const directory = join(app.dataDir, 'files', String(id));
+  failFileOperation(t, 'rmSync', (path) => path === directory);
+  assert.equal((await app.api('DELETE', `${root}/${id}`)).status, 500);
+  assert.equal(app.db.prepare('SELECT COUNT(*) AS n FROM applications WHERE id = ?').get(id).n, 0);
+  assert.equal(app.db.prepare('SELECT COUNT(*) AS n FROM application_events WHERE application_id = ?').get(id).n, 0);
+  assert.equal(existsSync(join(directory, 'resume.pdf')), true);
+  assert.equal(existsSync(join(directory, 'cover.pdf')), true);
 });

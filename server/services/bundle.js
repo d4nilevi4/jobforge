@@ -5,7 +5,7 @@ import { renderHtml } from '../render/index.js';
 import { findChrome } from '../render/pdf.js';
 import { upgradeDocument } from '../upgrade.js';
 import { loadSchema, validate } from '../validate.js';
-import { restoreApplicationFiles } from './applications.js';
+import { applicationDocumentErrors, normalizeCompany, normalizeUrl, restoreApplicationFiles } from './applications.js';
 
 const appVersion = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version;
 const applicationColumns = ['id', 'status', 'verdict', 'score', 'vacancy_url', 'vacancy_url_norm', 'vacancy_source', 'company', 'company_norm', 'title', 'location', 'language', 'vacancy_text', 'track_id', 'resume_template', 'cover_template', 'resume_content', 'cover_content', 'notes', 'warnings', 'pages_resume', 'pages_cover', 'profile_revision_id', 'created_at', 'updated_at', 'created_by_token_id'];
@@ -43,26 +43,34 @@ function document(kind, value, path) {
 }
 
 export function exportBundle(db, { version = appVersion } = {}) {
-  const profile = db.prepare('SELECT doc FROM profile WHERE id = 1').get();
-  const templates = db.prepare('SELECT * FROM templates ORDER BY id').all().map((row) => ({
-    ...row,
-    versions: db.prepare('SELECT version, meta, source, created_at FROM template_versions WHERE template_id = ? ORDER BY version').all(row.id)
-      .map((entry) => ({ ...entry, meta: JSON.parse(entry.meta) }))
-  }));
-  return {
-    bundle_version: 1, exported_at: new Date().toISOString(), app_version: version,
-    schema_version: Number(db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get()?.value ?? 0),
-    profile: profile ? upgradeDocument('profile', JSON.parse(profile.doc)) : null,
-    profile_revisions: db.prepare('SELECT * FROM profile_revisions ORDER BY id').all().map((row) => ({ ...row, doc: upgradeDocument('profile', JSON.parse(row.doc)) })),
-    tracks: Object.fromEntries(db.prepare('SELECT id, doc FROM tracks ORDER BY id').all().map((row) => [row.id, upgradeDocument('track', JSON.parse(row.doc))])),
-    templates,
-    applications: db.prepare('SELECT * FROM applications ORDER BY id').all().map((row) => ({
-      ...row, resume_content: row.resume_content ? upgradeDocument('content', JSON.parse(row.resume_content)) : null,
-      cover_content: row.cover_content ? upgradeDocument('cover', JSON.parse(row.cover_content)) : null,
-      warnings: JSON.parse(row.warnings || '[]')
-    })),
-    events: db.prepare('SELECT * FROM application_events ORDER BY id').all().map((row) => ({ ...row }))
-  };
+  db.exec('BEGIN');
+  try {
+    const profile = db.prepare('SELECT doc FROM profile WHERE id = 1').get();
+    const templates = db.prepare('SELECT * FROM templates ORDER BY id').all().map((row) => ({
+      ...row,
+      versions: db.prepare('SELECT version, meta, source, created_at FROM template_versions WHERE template_id = ? ORDER BY version').all(row.id)
+        .map((entry) => ({ ...entry, meta: JSON.parse(entry.meta) }))
+    }));
+    const bundle = {
+      bundle_version: 1, exported_at: new Date().toISOString(), app_version: version,
+      schema_version: Number(db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get()?.value ?? 0),
+      profile: profile ? upgradeDocument('profile', JSON.parse(profile.doc)) : null,
+      profile_revisions: db.prepare('SELECT * FROM profile_revisions ORDER BY id').all().map((row) => ({ ...row, doc: upgradeDocument('profile', JSON.parse(row.doc)) })),
+      tracks: Object.fromEntries(db.prepare('SELECT id, doc FROM tracks ORDER BY id').all().map((row) => [row.id, upgradeDocument('track', JSON.parse(row.doc))])),
+      templates,
+      applications: db.prepare('SELECT * FROM applications ORDER BY id').all().map((row) => ({
+        ...row, resume_content: row.resume_content ? upgradeDocument('content', JSON.parse(row.resume_content)) : null,
+        cover_content: row.cover_content ? upgradeDocument('cover', JSON.parse(row.cover_content)) : null,
+        warnings: JSON.parse(row.warnings || '[]')
+      })),
+      events: db.prepare('SELECT * FROM application_events ORDER BY id').all().map((row) => ({ ...row }))
+    };
+    db.exec('COMMIT');
+    return bundle;
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
 }
 
 function assertEmpty(db) {
@@ -128,7 +136,8 @@ function restoreRows(db, bundle) {
   for (const [index, row] of bundle.applications.entries()) {
     const path = `applications[${index}]`;
     positiveId(row?.id, `${path}.id`);
-    validateRow(row, applicationColumns, path, {
+    const normalized = { ...row, vacancy_url_norm: normalizeUrl(row.vacancy_url), company_norm: normalizeCompany(row.company) };
+    validateRow(normalized, applicationColumns, path, {
       id: { type: 'integer' }, status: { enum: statusValues }, verdict: { enum: ['apply', 'maybe', 'skip'] },
       score: { type: ['number', 'null'], minimum: 0, maximum: 1 }, warnings: { type: 'array' },
       resume_content: { type: ['object', 'string', 'null'] }, cover_content: { type: ['object', 'string', 'null'] },
@@ -137,11 +146,23 @@ function restoreRows(db, bundle) {
     });
     if (!statusValues.includes(row.status)) invalid(`${path}.status`, 'Use a known JobForge application status.');
     if (!Array.isArray(row.warnings)) invalid(`${path}.warnings`, 'Provide the warnings array from GET /export.');
-    const stored = { ...row, warnings: JSON.stringify(row.warnings) };
+    const documentErrors = applicationDocumentErrors(row, { path });
+    if (documentErrors.length) throw validationFailed(`Application #${row.id} has inconsistent documents. Correct the fields in details before importing.`, documentErrors);
+    const stored = { ...normalized, warnings: JSON.stringify(row.warnings) };
     for (const [key, kind] of [['resume_content', 'content'], ['cover_content', 'cover']]) {
       stored[key] = row[key] == null ? null : JSON.stringify(document(kind, row[key], `${path}.${key}`));
     }
-    insertRow(db, 'applications', applicationColumns, stored);
+    try {
+      insertRow(db, 'applications', applicationColumns, stored);
+    } catch (error) {
+      const existing = String(error.code).startsWith('ERR_SQLITE') && stored.vacancy_url_norm
+        ? db.prepare('SELECT id FROM applications WHERE vacancy_url_norm = ?').get(stored.vacancy_url_norm) : null;
+      if (existing) throw validationFailed(`Applications #${existing.id} and #${row.id} have the same normalized vacancy URL. Keep one application per vacancy before importing.`, [{
+        path: `${path}.vacancy_url`, code: 'duplicate_vacancy', application_id: row.id, existing_id: existing.id,
+        message: `Application #${row.id} duplicates application #${existing.id}. Remove the duplicate or correct its vacancy_url in the bundle.`
+      }]);
+      throw error;
+    }
   }
   for (const [index, row] of bundle.events.entries()) {
     positiveId(row?.id, `events[${index}].id`);
@@ -181,7 +202,7 @@ export async function importBundle(db, bundle, options = {}) {
       continue;
     }
     try {
-      await restoreApplicationFiles(db, row.id, { ...options, chrome, preserveUpdatedAt: true, preserveTemplateVersion: true });
+      await restoreApplicationFiles(db, row.id, { ...options, chrome, preserveUpdatedAt: true, preserveTemplateVersion: true, preserveProfileRevision: true });
       rendered.push(row.id);
     } catch (error) {
       render_errors.push({ id: row.id, message: error.message, details: error.details ?? [] });
