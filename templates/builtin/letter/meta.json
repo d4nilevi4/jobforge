@@ -1,0 +1,17 @@
+{
+  "id": "letter",
+  "name": "Clean cover letter",
+  "kind": "cover",
+  "version": 1,
+  "description": "A clean cover letter with profile contact details and signature.",
+  "paper": "letter",
+  "max_pages": 1,
+  "languages": [
+    "en",
+    "ru"
+  ],
+  "labels": {
+    "en": {},
+    "ru": {}
+  }
+}

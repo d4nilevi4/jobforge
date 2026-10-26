@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<title>{{identity.name}} - {{resume.headline}}</title>
+<style>
+@page { size: Letter; margin: 0.45in 0.55in; }
+* { box-sizing: border-box; }
+html { font-family: "Helvetica Neue", Helvetica, Arial, "Liberation Sans", "DejaVu Sans", sans-serif; font-size: 10pt; line-height: 1.18; color: #000; background: #fff; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+body { margin: 0; }
+h1, h2, h3, p, ul { margin: 0; }
+h1 { font-size: 21pt; line-height: 1.1; font-weight: 700; }
+h2 { font-size: 10.5pt; font-variant: small-caps; color: #000; border-bottom: 0.6pt solid #000; padding-bottom: 2pt; margin-bottom: 4pt; break-after: avoid; }
+h3 { font-size: 1em; font-weight: 700; }
+header { margin-bottom: 9pt; break-inside: avoid; }
+.headline { font-size: 11pt; margin-top: 3pt; }
+.contact { display: flex; flex-wrap: wrap; gap: 2pt 10pt; font-size: 9pt; margin-top: 4pt; }
+.availability { font-size: 9pt; margin-top: 3pt; }
+section { margin-top: 9pt; }
+.entry { margin-bottom: 5pt; break-inside: avoid; }
+.row { display: flex; justify-content: space-between; align-items: baseline; gap: 12pt; }
+.dates { white-space: nowrap; font-size: 0.94em; }
+.role, .tech { margin-top: 1pt; }
+.tech { font-size: 0.94em; }
+ul { padding-left: 14pt; margin-top: 2pt; }
+li { margin-bottom: 3pt; }
+li:last-child, .entry:last-child { margin-bottom: 0; }
+.skills { list-style: none; padding-left: 0; margin-top: 0; }
+.skills li { margin-bottom: 2pt; break-inside: avoid; }
+a { color: inherit; text-decoration: none; overflow-wrap: anywhere; }
+p { orphans: 2; widows: 2; }
+.summary { white-space: pre-line; }
+@media print { body { margin: 0; } a { color: inherit; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>{{identity.name}}</h1>
+  {{#if resume.headline}}<p class="headline">{{resume.headline}}</p>{{/if}}
+  <div class="contact" aria-label="{{labels.contact}}">
+    {{#if identity.email}}<span><a href="mailto:{{identity.email}}">{{identity.email}}</a></span>{{/if}}
+    {{#if identity.phone}}<span>{{identity.phone}}</span>{{/if}}
+    {{#if identity.location}}<span>{{identity.location}}</span>{{/if}}
+    {{#each identity.links}}<span><a href="{{url}}">{{#if label}}{{label}}: {{/if}}{{display}}</a></span>{{/each}}
+  </div>
+  {{#if identity.availability}}<p class="availability">{{identity.availability}}</p>{{/if}}
+</header>
+<main>
+  {{#if resume.summary}}
+  <section aria-labelledby="summary">
+    <h2 id="summary">{{labels.summary}}</h2>
+    <p class="summary">{{resume.summary}}</p>
+  </section>
+  {{/if}}
+  {{#if resume.experience}}
+  <section aria-labelledby="experience">
+    <h2 id="experience">{{labels.experience}}</h2>
+    {{#each resume.experience}}
+    <article class="entry">
+      <div class="row"><h3>{{company}}</h3>{{#if dates}}<span class="dates">{{dates}}</span>{{/if}}</div>
+      <p class="role">{{title}}{{#if location}} · {{location}}{{/if}}</p>
+      {{#if bullets}}<ul>{{#each bullets}}<li>{{.}}</li>{{/each}}</ul>{{/if}}
+    </article>
+    {{/each}}
+  </section>
+  {{/if}}
+  {{#if resume.projects}}
+  <section aria-labelledby="projects">
+    <h2 id="projects">{{labels.projects}}</h2>
+    {{#each resume.projects}}
+    <article class="entry">
+      <h3>{{title}}{{#if link}} · <a href="{{link}}">{{#if link_label}}{{link_label}}{{else}}{{link}}{{/if}}</a>{{/if}}</h3>
+      {{#if tech}}<p class="tech">{{tech}}</p>{{/if}}
+      {{#if bullets}}<ul>{{#each bullets}}<li>{{.}}</li>{{/each}}</ul>{{/if}}
+    </article>
+    {{/each}}
+  </section>
+  {{/if}}
+  {{#if resume.skills}}
+  <section aria-labelledby="skills">
+    <h2 id="skills">{{labels.skills}}</h2>
+    <ul class="skills">{{#each resume.skills}}<li><strong>{{label}}:</strong> {{items}}</li>{{/each}}</ul>
+  </section>
+  {{/if}}
+  {{#if resume.education}}
+  <section aria-labelledby="education">
+    <h2 id="education">{{labels.education}}</h2>
+    {{#each resume.education}}
+    <article class="entry">
+      <div class="row"><h3>{{institution}}</h3>{{#if years}}<span class="dates">{{years}}</span>{{/if}}</div>
+      {{#if degree}}<p>{{degree}}</p>{{/if}}
+    </article>
+    {{/each}}
+  </section>
+  {{/if}}
+</main>
+</body>
+</html>

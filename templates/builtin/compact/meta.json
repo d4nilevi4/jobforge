@@ -1,0 +1,17 @@
+{
+  "id": "compact",
+  "name": "Compact one-page",
+  "kind": "resume",
+  "version": 1,
+  "description": "A dense, single-column resume for extensive experience.",
+  "paper": "letter",
+  "max_pages": 1,
+  "languages": [
+    "en",
+    "ru"
+  ],
+  "labels": {
+    "en": {},
+    "ru": {}
+  }
+}

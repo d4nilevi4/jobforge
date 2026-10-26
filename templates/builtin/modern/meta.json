@@ -1,0 +1,17 @@
+{
+  "id": "modern",
+  "name": "Modern resume",
+  "kind": "resume",
+  "version": 1,
+  "description": "An airy, single-column A4 resume with subtle accent headings.",
+  "paper": "a4",
+  "max_pages": 2,
+  "languages": [
+    "en",
+    "ru"
+  ],
+  "labels": {
+    "en": {},
+    "ru": {}
+  }
+}

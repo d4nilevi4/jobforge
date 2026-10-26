@@ -1,0 +1,122 @@
+{
+  "profile_identity": {
+    "name": "Alex Example",
+    "name_localized": {
+      "ru": "Алекс Пример"
+    },
+    "email": "alex@example.com",
+    "phone": "",
+    "location": "Remote",
+    "links": [
+      {
+        "label": "Portfolio",
+        "url": "https://example.com/"
+      }
+    ],
+    "availability": {
+      "en": "Available for remote work, UTC+0",
+      "ru": "Открыт к удалённой работе, UTC+0"
+    }
+  },
+  "resume": {
+    "schema_version": 1,
+    "language": "en",
+    "headline": "Software Engineer",
+    "summary": "Software engineer building reliable web services and practical developer tools. Focused on clear APIs, fast feedback, and maintainable systems.",
+    "experience": [
+      {
+        "company": "Example Systems",
+        "title": "Senior Software Engineer",
+        "dates": "2022 - Present",
+        "location": "Remote",
+        "bullets": [
+          "Built Node.js services for application workflows and reporting.",
+          "Reduced batch processing time by 35% with bounded concurrency.",
+          "Added integration checks and guided API reviews across the team."
+        ]
+      },
+      {
+        "company": "Example Studio",
+        "title": "Software Engineer",
+        "dates": "2019 - 2022",
+        "location": "Remote",
+        "bullets": [
+          "Delivered C# editor tools for content teams and automated builds.",
+          "Cut release preparation from two hours to twenty minutes.",
+          "Partnered with designers to simplify asset validation workflows."
+        ]
+      },
+      {
+        "company": "Example Tools",
+        "title": "Junior Software Engineer",
+        "dates": "2017 - 2019",
+        "location": "Remote",
+        "bullets": [
+          "Maintained internal dashboards and JSON reporting endpoints.",
+          "Improved SQL queries and documented common support tasks.",
+          "Wrote regression checks for imports and data migrations."
+        ]
+      }
+    ],
+    "projects": [
+      {
+        "title": "Application Workspace",
+        "tech": "Node.js, SQLite",
+        "link": "https://example.com/workspace",
+        "link_label": "Source",
+        "bullets": [
+          "Built a local workspace for reviewing job application documents."
+        ]
+      },
+      {
+        "title": "Build Monitor",
+        "tech": "C#, Unity",
+        "link": "https://example.com/monitor",
+        "link_label": "Demo",
+        "bullets": [
+          "Created a compact build status panel with actionable diagnostics."
+        ]
+      },
+      {
+        "title": "Data Check",
+        "tech": "Go, SQL",
+        "link": "https://example.com/check",
+        "link_label": "Source",
+        "bullets": [
+          "Developed a command-line tool for repeatable dataset validation."
+        ]
+      }
+    ],
+    "skills": [
+      {
+        "label": "Languages",
+        "items": "JavaScript, TypeScript, C#, Go, SQL"
+      },
+      {
+        "label": "Backend",
+        "items": "Node.js, REST APIs, SQLite, PostgreSQL"
+      },
+      {
+        "label": "Tools",
+        "items": "Git, Docker, Linux, Unity"
+      },
+      {
+        "label": "Practices",
+        "items": "Testing, API design, code review, profiling"
+      }
+    ],
+    "education": [
+      {
+        "institution": "Example University",
+        "degree": "BSc in Computer Science",
+        "years": "2013 - 2017"
+      }
+    ],
+    "extra": {}
+  },
+  "cover": {
+    "schema_version": 1,
+    "language": "en",
+    "text": "I am interested in the software engineer role. My work combines reliable web services with practical tools that help teams ship with confidence.\n\nAt Example Systems, I built Node.js services for application workflows and reduced batch processing time by 35%. Earlier, I developed C# editor tools and streamlined release preparation at Example Studio.\n\nI would welcome the opportunity to discuss how this experience could support your engineering team. Thank you for considering my application."
+  }
+}
