@@ -10,6 +10,7 @@ import { renderFailed } from '../errors.js';
 const runFile = promisify(execFile);
 let activeRenders = 0;
 const pendingRenders = [];
+let pendingHtmlBytes = 0;
 
 function isFile(path, executable = false) {
   try {
@@ -63,18 +64,72 @@ export function chromeVersion(path) {
   }
 }
 
-function acquireRender() {
+function queueWaitError() {
+  return renderFailed('PDF render queue wait exceeded 60000 ms. The server is busy; retry the PDF render later.');
+}
+
+function acquireRender(htmlBytes) {
   if (activeRenders < 2) {
     activeRenders++;
     return Promise.resolve();
   }
-  return new Promise((resolve) => pendingRenders.push(resolve));
+  if (pendingRenders.length >= 20 || pendingHtmlBytes + htmlBytes > 20 * 1024 * 1024) {
+    return Promise.reject(renderFailed('PDF render queue is full (20 waiting jobs or 20 MB of queued HTML). The server is busy; retry the PDF render later.'));
+  }
+  return new Promise((resolve, reject) => {
+    const job = { resolve, reject, htmlBytes, deadline: Date.now() + 60000 };
+    job.timer = setTimeout(() => {
+      pendingRenders.splice(pendingRenders.indexOf(job), 1);
+      pendingHtmlBytes -= job.htmlBytes;
+      reject(queueWaitError());
+    }, 60000);
+    pendingHtmlBytes += htmlBytes;
+    pendingRenders.push(job);
+  });
 }
 
 function releaseRender() {
-  const next = pendingRenders.shift();
-  if (next) next();
-  else activeRenders--;
+  let next;
+  while ((next = pendingRenders.shift())) {
+    clearTimeout(next.timer);
+    pendingHtmlBytes -= next.htmlBytes;
+    if (Date.now() >= next.deadline) {
+      next.reject(queueWaitError());
+      continue;
+    }
+    next.resolve();
+    return;
+  }
+  activeRenders--;
+}
+
+function isRefreshMeta(tag) {
+  const attributes = /([^\t\n\f\r "'<>/=]+)(?:[\t\n\f\r ]*=[\t\n\f\r ]*(?:"([^"]*)"|'([^']*)'|([^\t\n\f\r "'=<>`]+)))?/g;
+  for (const [, name, quoted, singleQuoted, unquoted] of tag.slice(5, -1).matchAll(attributes)) {
+    if (name.toLowerCase() !== 'http-equiv') continue;
+    const value = (quoted ?? singleQuoted ?? unquoted ?? '').replace(/&#(x[\da-f]+|\d+);?|&(Tab|NewLine);/gi, (_, numeric, named) => {
+      if (named) return named.toLowerCase() === 'tab' ? '\t' : '\n';
+      const code = numeric[0].toLowerCase() === 'x' ? parseInt(numeric.slice(1), 16) : Number(numeric);
+      return code <= 0x10ffff ? String.fromCodePoint(code) : '\ufffd';
+    });
+    return value.trim().toLowerCase() === 'refresh';
+  }
+  return false;
+}
+
+function protectHtml(source) {
+  const html = source.replace(/<!--(?:>|->|[\s\S]*?(?:--!?>|$))|<\/?[a-z][a-z\d:-]*(?=[\t\n\f\r />])(?:[^"'<>]|"[^"]*"|'[^']*')*>|<![^>]*>|<\?[^>]*>/gi, (tag) => {
+    if (/^<base(?=[\t\n\f\r />])/i.test(tag)) return '';
+    if (/^<meta(?=[\t\n\f\r />])/i.test(tag) && isRefreshMeta(tag)) return '';
+    return tag;
+  });
+  // Untrusted templates may use inline CSS and data assets, but cannot run scripts or load external files or URLs.
+  const policy = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src data:; font-src data:; script-src \'none\'; frame-src \'none\'; form-action \'none\'; base-uri \'none\'">';
+  const prefix = html.match(/^[\t\n\f\r ]*(?:<!doctype[\t\n\f\r ]+html[\t\n\f\r ]*>[\t\n\f\r ]*)?(?:<html(?=[\t\n\f\r />])(?:[^"'<>]|"[^"]*"|'[^']*')*>[\t\n\f\r ]*)?/i)[0];
+  const rest = html.slice(prefix.length);
+  const head = rest.match(/^<head(?=[\t\n\f\r />])(?:[^"'<>]|"[^"]*"|'[^']*')*>/i);
+  return head ? prefix + head[0] + policy + rest.slice(head[0].length)
+    : `${prefix}<head>${policy}</head>${rest}`;
 }
 
 export function countPages(buffer) {
@@ -103,16 +158,23 @@ export async function htmlToPdf(html, { chromeBin, docker = false, timeoutMs = 3
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
     throw renderFailed('PDF timeoutMs must be a positive number. Set timeoutMs to a positive duration in milliseconds.');
   }
-  await acquireRender();
+  await acquireRender(Buffer.byteLength(html, 'utf8'));
   let directory;
   try {
     directory = await mkdtemp(join(tmpdir(), 'jobforge-pdf-'));
     const input = join(directory, 'document.html');
     const output = join(directory, 'document.pdf');
-    await writeFile(input, html, 'utf8');
+    await writeFile(input, protectHtml(html), 'utf8');
     const args = [
       '--headless=new',
       '--disable-gpu',
+      '--disable-extensions',
+      '--disable-sync',
+      '--disable-background-networking',
+      '--disable-component-update',
+      '--no-first-run',
+      '--disable-default-apps',
+      '--disable-print-preview',
       '--no-pdf-header-footer',
       '--hide-scrollbars',
       '--run-all-compositor-stages-before-draw',

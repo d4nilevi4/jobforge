@@ -1,6 +1,15 @@
 import { paragraphs } from './engine.js';
 import { labelsFor } from './labels.js';
 
+export function safeUrl(value) {
+  if (typeof value !== 'string' || /[\s\u0000-\u001f\u007f-\u009f]/u.test(value)) return '';
+  try {
+    return ['http:', 'https:', 'mailto:', 'tel:'].includes(new URL(value).protocol) ? value : '';
+  } catch {
+    return '';
+  }
+}
+
 export function buildContext({ profile, meta, resume, cover, lang }) {
   const language = (meta?.kind === 'cover' ? cover?.language : resume?.language)
     || (!meta?.kind && cover?.language) || lang || 'en';
@@ -13,16 +22,22 @@ export function buildContext({ profile, meta, resume, cover, lang }) {
       phone: identity.phone || '',
       location: identity.location || '',
       availability: availability[language] || availability.en || Object.values(availability)[0] || '',
-      links: (identity.links ?? []).map(({ label, url }) => ({
-        label,
-        url,
-        display: url.replace(/^[a-z][a-z\d+.-]*:(?:\/\/)?/i, '').replace(/\/+$/, '')
-      }))
+      links: (identity.links ?? []).map(({ label, url }) => {
+        const sanitized = safeUrl(url);
+        return {
+          label,
+          url: sanitized,
+          display: sanitized.replace(/^[a-z][a-z\d+.-]*:(?:\/\/)?/i, '').replace(/\/+$/, '')
+        };
+      })
     },
     lang: language,
     labels: labelsFor(meta, language),
     paper: meta?.paper || 'letter',
-    resume,
+    resume: Array.isArray(resume?.projects) ? {
+      ...resume,
+      projects: resume.projects.map((project) => ({ ...project, link: safeUrl(project.link) }))
+    } : resume,
     cover,
     paragraphs: paragraphs(cover?.text)
   };

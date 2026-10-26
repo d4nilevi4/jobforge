@@ -28,11 +28,10 @@ export const DEFAULT_LABELS = {
 };
 
 export function labelsFor(meta, lang = 'en') {
-  const language = Object.hasOwn(DEFAULT_LABELS, lang) ? lang : 'en';
   return {
     ...DEFAULT_LABELS.en,
     ...meta?.labels?.en,
-    ...DEFAULT_LABELS[language],
-    ...meta?.labels?.[language]
+    ...(Object.hasOwn(DEFAULT_LABELS, lang) ? DEFAULT_LABELS[lang] : {}),
+    ...meta?.labels?.[lang]
   };
 }

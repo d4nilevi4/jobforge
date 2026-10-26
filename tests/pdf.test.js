@@ -107,11 +107,15 @@ process.exitCode = 7;
   assert.ok(Buffer.isBuffer(result.pdf));
   assert.equal(result.pdf.subarray(0, 5).toString(), '%PDF-');
   const capture = JSON.parse(await readFile(join(fixture.directory, 'capture.json'), 'utf8'));
-  assert.equal(capture.html, html);
+  const policy = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src data:; font-src data:; script-src \'none\'; frame-src \'none\'; form-action \'none\'; base-uri \'none\'">';
+  assert.equal(capture.html, `<!doctype html><head>${policy}</head><p>Alex Example</p>`);
   for (const flag of ['--headless=new', '--disable-gpu', '--no-pdf-header-footer', '--hide-scrollbars',
-    '--run-all-compositor-stages-before-draw', '--virtual-time-budget=2000', '--no-sandbox', '--disable-dev-shm-usage']) {
+    '--run-all-compositor-stages-before-draw', '--virtual-time-budget=2000', '--no-sandbox', '--disable-dev-shm-usage',
+    '--disable-extensions', '--disable-sync', '--disable-background-networking', '--disable-component-update',
+    '--no-first-run', '--disable-default-apps', '--disable-print-preview']) {
     assert.ok(capture.args.includes(flag), flag);
   }
+  assert.ok(!capture.args.includes('--disable-features=NetworkService'));
   assert.ok(capture.args.some((arg) => arg.startsWith('--user-data-dir=')));
   assert.match(capture.args.at(-1), /^file:\/\//);
   assert.equal(existsSync(capture.input), false);

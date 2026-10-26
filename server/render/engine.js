@@ -42,7 +42,7 @@ function tokenize(source) {
 
 function parse(tokens) {
   let offset = 0;
-  function sequence(block, openingLine) {
+  function sequence(block, openingLine, depth = 0) {
     const nodes = [];
     while (offset < tokens.length) {
       const token = tokens[offset++];
@@ -58,11 +58,14 @@ function parse(tokens) {
       }
       const opening = !raw && value.match(/^#(each|if)\s+(\S+)$/);
       if (opening) {
+        if (depth >= 12) {
+          throw syntaxError(line, 'Template block nesting depth limit of 12 exceeded. Reduce nested #if and #each blocks to at most 12.');
+        }
         const [, type, path] = opening;
-        const body = sequence(type, line);
+        const body = sequence(type, line, depth + 1);
         let alternate = [];
         if (body.end === 'else') {
-          const remainder = sequence(type, line);
+          const remainder = sequence(type, line, depth + 1);
           if (remainder.end === 'else') {
             throw syntaxError(tokens[offset - 1].line, 'Duplicate {{else}}; keep one per if block.');
           }
@@ -104,20 +107,47 @@ function isTruthy(value) {
   return Boolean(value) && (!Array.isArray(value) || value.length > 0);
 }
 
-function evaluate(nodes, scopes) {
-  return nodes.map((node) => {
-    if (node.type === 'text') return node.value;
+function evaluationStep(state) {
+  if (++state.steps > 200000) {
+    throw new Error('Template evaluation step limit of 200000 exceeded. Reduce nested loops or the number of items they render.');
+  }
+}
+
+function appendOutput(state, text) {
+  state.bytes += Buffer.byteLength(text, 'utf8');
+  if (state.bytes > 2 * 1024 * 1024) {
+    throw new Error('Template output size limit of 2 MB exceeded. Reduce rendered content or repeated template blocks.');
+  }
+  if (text) state.chunks.push(text);
+}
+
+function evaluate(nodes, scopes, state) {
+  for (const node of nodes) {
+    evaluationStep(state);
+    if (node.type === 'text') {
+      appendOutput(state, node.value);
+      continue;
+    }
     const value = resolve(node.path, scopes);
-    if (node.type === 'value') return node.raw ? String(value ?? '') : escapeHtml(value);
-    if (node.type === 'if') return evaluate(isTruthy(value) ? node.nodes : node.alternate, scopes);
-    if (!Array.isArray(value)) return '';
-    return value.map((item, index) => evaluate(node.nodes, [{
-      value: item,
-      variables: { '@index': index, '@first': index === 0, '@last': index === value.length - 1 }
-    }, ...scopes])).join('');
-  }).join('');
+    if (node.type === 'value') {
+      appendOutput(state, node.raw ? String(value ?? '') : escapeHtml(value));
+    } else if (node.type === 'if') {
+      evaluate(isTruthy(value) ? node.nodes : node.alternate, scopes, state);
+    } else if (Array.isArray(value)) {
+      for (let index = 0; index < value.length; index++) {
+        evaluationStep(state);
+        evaluate(node.nodes, [{
+          value: value[index],
+          variables: { '@index': index, '@first': index === 0, '@last': index === value.length - 1 }
+        }, ...scopes], state);
+      }
+    }
+  }
 }
 
 export function renderTemplate(source, context = {}) {
-  return evaluate(parse(tokenize(source)), [{ value: context, variables: {} }]);
+  const nodes = parse(tokenize(source));
+  const state = { steps: 0, bytes: 0, chunks: [] };
+  evaluate(nodes, [{ value: context, variables: {} }], state);
+  return state.chunks.join('');
 }

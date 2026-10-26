@@ -103,7 +103,15 @@ export function register(router) {
     const context = previewContext(db, template, body);
     const input = { meta: template.meta, source: template.source, context };
     if (query.format === 'html') {
-      return { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' }, raw: renderHtml(input) };
+      return {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Content-Security-Policy': "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:",
+          'X-Content-Type-Options': 'nosniff'
+        },
+        raw: renderHtml(input)
+      };
     }
     const chrome = { chromeBin: c.chrome.bin, docker: c.chrome.docker };
     const result = await c.renderPdf({ ...input, chrome });

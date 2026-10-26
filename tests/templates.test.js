@@ -211,11 +211,16 @@ test('preview HTML uses sample or stored identity, localizes content and never i
     const response = await fetch(`${s.url}${root}/${id}/preview?format=html`, {
       method: 'POST', headers: { Authorization: `Bearer ${readOnly}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body)
     });
-    return { status: response.status, html: await response.text(), type: response.headers.get('content-type') };
+    return {
+      status: response.status, html: await response.text(), type: response.headers.get('content-type'),
+      csp: response.headers.get('content-security-policy'), nosniff: response.headers.get('x-content-type-options')
+    };
   };
   const sample = await htmlPreview('classic', {});
   assert.equal(sample.status, 200);
   assert.match(sample.type, /^text\/html/);
+  assert.equal(sample.csp, "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:");
+  assert.equal(sample.nosniff, 'nosniff');
   assert.match(sample.html, /Alex Example/);
   assert.match(sample.html, /alex@example.com/);
   await s.api('PUT', '/api/v1/profile', { ...profile, identity: { ...profile.identity, location: 'Stored profile location' } });
@@ -355,6 +360,8 @@ test('direct template handlers manage lifecycle, references and previews without
   db.prepare('DELETE FROM applications').run();
   const sample = await call('POST', '/:id/preview', 'custom-example', {}, { format: 'html' });
   assert.equal(sample.headers['Content-Type'], 'text/html; charset=utf-8');
+  assert.equal(sample.headers['Content-Security-Policy'], "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:");
+  assert.equal(sample.headers['X-Content-Type-Options'], 'nosniff');
   assert.match(sample.raw, /Alex Example/);
   assert.equal(renders, 0);
   saveProfile(db, { ...profile, identity: { ...profile.identity, location: 'Stored location' } }, null);

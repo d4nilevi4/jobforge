@@ -81,7 +81,7 @@ test('labels merge localized overrides, defaults, English overrides, and English
   const meta = { labels: {
     en: { summary: 'English custom', onlyEnglish: 'Extra', greeting: 'Dear team,' },
     ru: { experience: 'Мой опыт', onlyRussian: 'Дополнительно' },
-    de: { summary: 'Ignored' }
+    de: { summary: 'Zusammenfassung' }
   } };
   const ru = labelsFor(meta, 'ru');
   assert.equal(ru.experience, 'Мой опыт');
@@ -90,7 +90,9 @@ test('labels merge localized overrides, defaults, English overrides, and English
   assert.equal(ru.onlyEnglish, 'Extra');
   assert.equal(ru.onlyRussian, 'Дополнительно');
   assert.equal(labelsFor(meta, 'en').summary, 'English custom');
-  assert.equal(labelsFor(meta, 'de').summary, 'English custom');
+  assert.equal(labelsFor(meta, 'de').summary, 'Zusammenfassung');
+  assert.equal(labelsFor(meta, 'de').greeting, 'Dear team,');
+  assert.equal(labelsFor(meta, 'de').experience, DEFAULT_LABELS.en.experience);
   assert.equal(labelsFor(meta, 'unknown').closing, 'Sincerely,');
   assert.deepEqual(labelsFor(undefined, 'ru'), DEFAULT_LABELS.ru);
   assert.deepEqual(labelsFor({}, 'unknown'), DEFAULT_LABELS.en);
