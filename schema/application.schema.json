@@ -1,0 +1,268 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "vacancy"
+  ],
+  "properties": {
+    "vacancy": {
+      "type": "object",
+      "required": [
+        "text"
+      ],
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "company": {
+          "type": "string"
+        },
+        "location": {
+          "type": "string"
+        },
+        "language": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      }
+    },
+    "verdict": {
+      "type": "string",
+      "enum": [
+        "apply",
+        "maybe",
+        "skip"
+      ]
+    },
+    "score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "track_id": {
+      "type": "string"
+    },
+    "resume": {
+      "type": "object",
+      "required": [
+        "template",
+        "content"
+      ],
+      "properties": {
+        "template": {
+          "type": "string"
+        },
+        "content": {
+          "$ref": "#/$defs/content"
+        }
+      }
+    },
+    "cover": {
+      "type": "object",
+      "required": [
+        "template",
+        "content"
+      ],
+      "properties": {
+        "template": {
+          "type": "string"
+        },
+        "content": {
+          "$ref": "#/$defs/cover"
+        }
+      }
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "anyOf": [
+    {
+      "required": [
+        "resume"
+      ]
+    },
+    {
+      "required": [
+        "verdict"
+      ],
+      "properties": {
+        "verdict": {
+          "const": "skip"
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "experience": {
+      "type": "object",
+      "required": [
+        "company",
+        "title",
+        "dates",
+        "bullets"
+      ],
+      "properties": {
+        "company": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "dates": {
+          "type": "string"
+        },
+        "location": {
+          "type": "string"
+        },
+        "bullets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "project": {
+      "type": "object",
+      "required": [
+        "title",
+        "bullets"
+      ],
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "tech": {
+          "type": "string"
+        },
+        "link": {
+          "type": "string"
+        },
+        "link_label": {
+          "type": "string"
+        },
+        "bullets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "education": {
+      "type": "object",
+      "required": [
+        "institution",
+        "degree",
+        "years"
+      ],
+      "properties": {
+        "institution": {
+          "type": "string"
+        },
+        "degree": {
+          "type": "string"
+        },
+        "years": {
+          "type": "string"
+        }
+      }
+    },
+    "skill": {
+      "type": "object",
+      "required": [
+        "label",
+        "items"
+      ],
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "content": {
+      "type": "object",
+      "required": [
+        "headline",
+        "experience",
+        "skills"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "integer",
+          "const": 1
+        },
+        "language": {
+          "type": "string"
+        },
+        "headline": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "experience": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/experience"
+          }
+        },
+        "projects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/project"
+          }
+        },
+        "skills": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/skill"
+          }
+        },
+        "education": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/education"
+          }
+        },
+        "extra": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    "cover": {
+      "type": "object",
+      "required": [
+        "text"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "integer",
+          "const": 1
+        },
+        "language": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

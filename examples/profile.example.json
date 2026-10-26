@@ -1,0 +1,225 @@
+{
+  "schema_version": 1,
+  "identity": {
+    "name": "Alex Example",
+    "name_localized": {
+      "ru": "Алекс Пример"
+    },
+    "email": "alex@example.com",
+    "phone": "",
+    "location": "Porto, Portugal",
+    "links": [
+      {
+        "label": "Portfolio",
+        "url": "https://example.com/alex"
+      },
+      {
+        "label": "Code samples",
+        "url": "https://example.com/alex/code"
+      }
+    ],
+    "availability": {
+      "en": "Remote, UTC+0",
+      "ru": "Удалённо, UTC+0"
+    }
+  },
+  "about": "Agent notes: Alex has about 10 years of software engineering experience across Unity games, Go services, and technical leadership. Target Unity/C# gameplay and tooling roles, Go backend roles, or hands-on technical director roles. Prefer remote teams with clear ownership and sustainable release schedules. Use direct, specific language and explain impact with the recorded numbers. Select facts for the role rather than listing every technology. Avoid hype, invented certifications, console shipping claims, and presenting coursework as production experience.",
+  "experience": [
+    {
+      "id": "brightledger",
+      "company": "Brightledger",
+      "title": "Technical Lead",
+      "dates": "2023 - present",
+      "location": "Remote",
+      "bullets": [
+        "Led a team of 8 engineers delivering Go services for an invoice reconciliation platform.",
+        "Reduced reconciliation latency from 900 ms to 280 ms by profiling Go workers and tuning PostgreSQL queries.",
+        "Introduced release checklists and staged rollouts, reducing production incidents by 35%.",
+        "Coordinated quarterly plans across 3 product teams and mentored 4 engineers."
+      ]
+    },
+    {
+      "id": "northwind-games",
+      "company": "Northwind Games",
+      "title": "Senior Unity Engineer",
+      "dates": "2020 - 2023",
+      "location": "Remote",
+      "bullets": [
+        "Built Unity and C# gameplay systems for Harborlight Tactics, a cooperative strategy game shipped on desktop.",
+        "Reduced frame time from 24 ms to 16 ms through profiling, object pooling, and asset-loading changes.",
+        "Designed a shared Unity editor toolset used by 12 designers across 2 projects.",
+        "Led technical planning for 5 engineers and reviewed architecture, estimates, and release risks."
+      ]
+    },
+    {
+      "id": "pixel-harbor",
+      "company": "Pixel Harbor",
+      "title": "Unity Developer",
+      "dates": "2016 - 2020",
+      "location": "Remote",
+      "bullets": [
+        "Developed C# gameplay and UI systems for Clockwork Orchard in Unity.",
+        "Built an automated content validation pipeline that reduced manual review time by 40%.",
+        "Integrated save migration and crash telemetry for 3 desktop releases."
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "id": "harborlight-tactics",
+      "title": "Harborlight Tactics",
+      "tech": "Unity, C#, Addressables",
+      "link": "https://example.com/projects/harborlight-tactics",
+      "link_label": "Project overview",
+      "bullets": [
+        "Built Unity and C# gameplay systems for Harborlight Tactics, a cooperative strategy game shipped on desktop.",
+        "Reduced frame time from 24 ms to 16 ms through profiling, object pooling, and asset-loading changes."
+      ]
+    },
+    {
+      "id": "reconcile-stream",
+      "title": "Reconcile Stream",
+      "tech": "Go, PostgreSQL, Redis",
+      "link": "https://example.com/projects/reconcile-stream",
+      "link_label": "Architecture notes",
+      "bullets": [
+        "Built idempotent Go workers processing 2 million reconciliation events per month.",
+        "Added Redis-backed retry scheduling and observability dashboards for failed event recovery."
+      ]
+    },
+    {
+      "id": "scene-audit",
+      "title": "Scene Audit",
+      "tech": "Unity, C#, Editor tooling",
+      "link": "https://example.com/projects/scene-audit",
+      "link_label": "Tool overview",
+      "bullets": [
+        "Designed a shared Unity editor toolset used by 12 designers across 2 projects.",
+        "Built an automated content validation pipeline that reduced manual review time by 40%."
+      ]
+    },
+    {
+      "id": "clockwork-orchard",
+      "title": "Clockwork Orchard",
+      "tech": "Unity, C#, uGUI",
+      "link": "https://example.com/projects/clockwork-orchard",
+      "link_label": "Project overview",
+      "bullets": [
+        "Developed C# gameplay and UI systems for Clockwork Orchard in Unity.",
+        "Integrated save migration and crash telemetry for 3 desktop releases."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "institution": "Example Coast Institute of Technology",
+      "degree": "BSc in Software Engineering",
+      "years": "2012 - 2016"
+    }
+  ],
+  "skills": [
+    {
+      "key": "languages",
+      "label": "Languages",
+      "label_localized": {
+        "ru": "Языки программирования"
+      },
+      "items": [
+        "C#",
+        "Go",
+        "SQL"
+      ]
+    },
+    {
+      "key": "unity",
+      "label": "Unity",
+      "label_localized": {
+        "ru": "Разработка на Unity"
+      },
+      "items": [
+        "Unity",
+        "Addressables",
+        "uGUI",
+        "Editor tooling",
+        "Profiling",
+        "Object pooling"
+      ]
+    },
+    {
+      "key": "backend",
+      "label": "Backend",
+      "label_localized": {
+        "ru": "Серверная разработка"
+      },
+      "items": [
+        "PostgreSQL",
+        "Redis",
+        "REST APIs",
+        "SQLite",
+        "Docker",
+        "Observability"
+      ]
+    },
+    {
+      "key": "leadership",
+      "label": "Leadership",
+      "label_localized": {
+        "ru": "Техническое руководство"
+      },
+      "items": [
+        "Technical planning",
+        "Architecture reviews",
+        "Mentoring",
+        "Release management",
+        "Cross-team coordination"
+      ]
+    },
+    {
+      "key": "tooling",
+      "label": "Tooling",
+      "label_localized": {
+        "ru": "Инструменты"
+      },
+      "items": [
+        "Git",
+        "CI/CD",
+        "Automated testing"
+      ]
+    }
+  ],
+  "familiar": [
+    {
+      "item": "Kubernetes",
+      "qualifier": "coursework"
+    }
+  ],
+  "languages": [
+    {
+      "name": "English",
+      "level": "Professional working proficiency"
+    },
+    {
+      "name": "Russian",
+      "level": "Professional working proficiency"
+    }
+  ],
+  "do_not_claim": [
+    {
+      "text": "Never claim production Kubernetes experience or shipped console titles.",
+      "patterns": [
+        "\\bproduction\\s+Kubernetes\\b",
+        "\\bshipped\\s+console\\s+(?:games|titles)\\b"
+      ]
+    }
+  ],
+  "rules": {
+    "forbid_patterns": [
+      {
+        "pattern": "\\brockstar\\b",
+        "message": "Avoid hype. Describe specific work and its recorded impact."
+      }
+    ],
+    "cover_max_words": 170,
+    "notes": "Keep covers focused on the vacancy. Use only recorded facts and metrics. Refer to Kubernetes only with the coursework qualifier. Do not invent certifications or console releases."
+  }
+}

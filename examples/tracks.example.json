@@ -1,0 +1,270 @@
+{
+  "unity-developer": {
+    "schema_version": 1,
+    "name": "Unity developer",
+    "when_to_use": "Use for Unity/C# gameplay, performance, or editor tooling vacancies. Prefer the Go backend variant for backend-only roles.",
+    "language": "en",
+    "resume_template": "classic",
+    "cover_template": "letter",
+    "base": {
+      "schema_version": 1,
+      "language": "en",
+      "headline": "Unity / C# Game Developer",
+      "summary": "Unity engineer with gameplay, UI, performance, and editor tooling experience on desktop games. Combines hands-on C# development with technical planning and release ownership.",
+      "experience": [
+        {
+          "company": "Northwind Games",
+          "title": "Senior Unity Engineer",
+          "dates": "2020 - 2023",
+          "location": "Remote",
+          "bullets": [
+            "Built Unity and C# gameplay systems for Harborlight Tactics, a cooperative strategy game shipped on desktop.",
+            "Reduced frame time from 24 ms to 16 ms through profiling, object pooling, and asset-loading changes.",
+            "Designed a shared Unity editor toolset used by 12 designers across 2 projects.",
+            "Led technical planning for 5 engineers and reviewed architecture, estimates, and release risks."
+          ]
+        },
+        {
+          "company": "Pixel Harbor",
+          "title": "Unity Developer",
+          "dates": "2016 - 2020",
+          "location": "Remote",
+          "bullets": [
+            "Developed C# gameplay and UI systems for Clockwork Orchard in Unity.",
+            "Built an automated content validation pipeline that reduced manual review time by 40%.",
+            "Integrated save migration and crash telemetry for 3 desktop releases."
+          ]
+        },
+        {
+          "company": "Brightledger",
+          "title": "Technical Lead",
+          "dates": "2023 - present",
+          "location": "Remote",
+          "bullets": [
+            "Led a team of 8 engineers delivering Go services for an invoice reconciliation platform.",
+            "Reduced reconciliation latency from 900 ms to 280 ms by profiling Go workers and tuning PostgreSQL queries.",
+            "Introduced release checklists and staged rollouts, reducing production incidents by 35%.",
+            "Coordinated quarterly plans across 3 product teams and mentored 4 engineers."
+          ]
+        }
+      ],
+      "projects": [
+        {
+          "title": "Harborlight Tactics",
+          "tech": "Unity, C#, Addressables",
+          "link": "https://example.com/projects/harborlight-tactics",
+          "link_label": "Project overview",
+          "bullets": [
+            "Built Unity and C# gameplay systems for Harborlight Tactics, a cooperative strategy game shipped on desktop.",
+            "Reduced frame time from 24 ms to 16 ms through profiling, object pooling, and asset-loading changes."
+          ]
+        },
+        {
+          "title": "Scene Audit",
+          "tech": "Unity, C#, Editor tooling",
+          "link": "https://example.com/projects/scene-audit",
+          "link_label": "Tool overview",
+          "bullets": [
+            "Designed a shared Unity editor toolset used by 12 designers across 2 projects.",
+            "Built an automated content validation pipeline that reduced manual review time by 40%."
+          ]
+        }
+      ],
+      "skills": [
+        {
+          "label": "Languages",
+          "items": "C#, Go"
+        },
+        {
+          "label": "Unity",
+          "items": "Unity, Addressables, uGUI, Editor tooling, Profiling, Object pooling"
+        },
+        {
+          "label": "Tooling",
+          "items": "Git, CI/CD, Automated testing"
+        }
+      ],
+      "education": [
+        {
+          "institution": "Example Coast Institute of Technology",
+          "degree": "BSc in Software Engineering",
+          "years": "2012 - 2016"
+        }
+      ]
+    },
+    "notes": "Lead with shipped desktop games, frame-time improvements, and editor tooling. Keep recent leadership as evidence of ownership; shorten backend details when space is limited."
+  },
+  "go-backend": {
+    "schema_version": 1,
+    "name": "Go backend developer",
+    "when_to_use": "Use for Go services, data processing, APIs, and backend technical lead vacancies. Select the Unity variant for gameplay-focused roles.",
+    "language": "en",
+    "resume_template": "classic",
+    "cover_template": "letter",
+    "base": {
+      "schema_version": 1,
+      "language": "en",
+      "headline": "Go Backend Developer",
+      "summary": "Technical lead building Go services for invoice reconciliation. Focuses on reliable event processing, PostgreSQL performance, observability, and safe releases.",
+      "experience": [
+        {
+          "company": "Brightledger",
+          "title": "Technical Lead",
+          "dates": "2023 - present",
+          "location": "Remote",
+          "bullets": [
+            "Led a team of 8 engineers delivering Go services for an invoice reconciliation platform.",
+            "Reduced reconciliation latency from 900 ms to 280 ms by profiling Go workers and tuning PostgreSQL queries.",
+            "Introduced release checklists and staged rollouts, reducing production incidents by 35%.",
+            "Coordinated quarterly plans across 3 product teams and mentored 4 engineers."
+          ]
+        },
+        {
+          "company": "Northwind Games",
+          "title": "Senior Unity Engineer",
+          "dates": "2020 - 2023",
+          "location": "Remote",
+          "bullets": [
+            "Built Unity and C# gameplay systems for Harborlight Tactics, a cooperative strategy game shipped on desktop.",
+            "Reduced frame time from 24 ms to 16 ms through profiling, object pooling, and asset-loading changes.",
+            "Designed a shared Unity editor toolset used by 12 designers across 2 projects.",
+            "Led technical planning for 5 engineers and reviewed architecture, estimates, and release risks."
+          ]
+        }
+      ],
+      "projects": [
+        {
+          "title": "Reconcile Stream",
+          "tech": "Go, PostgreSQL, Redis",
+          "link": "https://example.com/projects/reconcile-stream",
+          "link_label": "Architecture notes",
+          "bullets": [
+            "Built idempotent Go workers processing 2 million reconciliation events per month.",
+            "Added Redis-backed retry scheduling and observability dashboards for failed event recovery."
+          ]
+        }
+      ],
+      "skills": [
+        {
+          "label": "Languages",
+          "items": "Go, SQL, C#"
+        },
+        {
+          "label": "Backend",
+          "items": "PostgreSQL, Redis, REST APIs, SQLite, Docker, Observability"
+        },
+        {
+          "label": "Tooling",
+          "items": "Git, CI/CD, Automated testing"
+        }
+      ],
+      "education": [
+        {
+          "institution": "Example Coast Institute of Technology",
+          "degree": "BSc in Software Engineering",
+          "years": "2012 - 2016"
+        }
+      ]
+    },
+    "notes": "Emphasize idempotent workers, latency, PostgreSQL, release safety, and operational ownership. Keep game experience brief and connect it to profiling and technical planning. Kubernetes is coursework only."
+  },
+  "technical-director": {
+    "schema_version": 1,
+    "name": "Technical director",
+    "when_to_use": "Use for hands-on technical director, engineering lead, or architecture roles spanning a small engineering organization, especially games and service teams.",
+    "language": "en",
+    "resume_template": "classic",
+    "cover_template": "letter",
+    "base": {
+      "schema_version": 1,
+      "language": "en",
+      "headline": "Technical Director / Engineering Lead",
+      "summary": "Technical lead with about 10 years across Unity games and Go services. Guides technical planning, architecture reviews, mentoring, and releases while staying close to implementation.",
+      "experience": [
+        {
+          "company": "Brightledger",
+          "title": "Technical Lead",
+          "dates": "2023 - present",
+          "location": "Remote",
+          "bullets": [
+            "Led a team of 8 engineers delivering Go services for an invoice reconciliation platform.",
+            "Reduced reconciliation latency from 900 ms to 280 ms by profiling Go workers and tuning PostgreSQL queries.",
+            "Introduced release checklists and staged rollouts, reducing production incidents by 35%.",
+            "Coordinated quarterly plans across 3 product teams and mentored 4 engineers."
+          ]
+        },
+        {
+          "company": "Northwind Games",
+          "title": "Senior Unity Engineer",
+          "dates": "2020 - 2023",
+          "location": "Remote",
+          "bullets": [
+            "Built Unity and C# gameplay systems for Harborlight Tactics, a cooperative strategy game shipped on desktop.",
+            "Reduced frame time from 24 ms to 16 ms through profiling, object pooling, and asset-loading changes.",
+            "Designed a shared Unity editor toolset used by 12 designers across 2 projects.",
+            "Led technical planning for 5 engineers and reviewed architecture, estimates, and release risks."
+          ]
+        },
+        {
+          "company": "Pixel Harbor",
+          "title": "Unity Developer",
+          "dates": "2016 - 2020",
+          "location": "Remote",
+          "bullets": [
+            "Developed C# gameplay and UI systems for Clockwork Orchard in Unity.",
+            "Built an automated content validation pipeline that reduced manual review time by 40%.",
+            "Integrated save migration and crash telemetry for 3 desktop releases."
+          ]
+        }
+      ],
+      "projects": [
+        {
+          "title": "Reconcile Stream",
+          "tech": "Go, PostgreSQL, Redis",
+          "link": "https://example.com/projects/reconcile-stream",
+          "link_label": "Architecture notes",
+          "bullets": [
+            "Built idempotent Go workers processing 2 million reconciliation events per month.",
+            "Added Redis-backed retry scheduling and observability dashboards for failed event recovery."
+          ]
+        },
+        {
+          "title": "Harborlight Tactics",
+          "tech": "Unity, C#, Addressables",
+          "link": "https://example.com/projects/harborlight-tactics",
+          "link_label": "Project overview",
+          "bullets": [
+            "Built Unity and C# gameplay systems for Harborlight Tactics, a cooperative strategy game shipped on desktop.",
+            "Reduced frame time from 24 ms to 16 ms through profiling, object pooling, and asset-loading changes."
+          ]
+        }
+      ],
+      "skills": [
+        {
+          "label": "Leadership",
+          "items": "Technical planning, Architecture reviews, Mentoring, Release management, Cross-team coordination"
+        },
+        {
+          "label": "Languages",
+          "items": "C#, Go, SQL"
+        },
+        {
+          "label": "Unity",
+          "items": "Unity, Profiling, Editor tooling"
+        },
+        {
+          "label": "Backend",
+          "items": "PostgreSQL, Redis, Observability"
+        }
+      ],
+      "education": [
+        {
+          "institution": "Example Coast Institute of Technology",
+          "degree": "BSc in Software Engineering",
+          "years": "2012 - 2016"
+        }
+      ]
+    },
+    "notes": "Position for a hands-on director role using demonstrated technical leadership, not an invented past director title. Emphasize planning, mentoring, architecture reviews, incident reduction, and delivery across teams."
+  }
+}
