@@ -32,8 +32,8 @@ export function detailsList(details = []) {
   return h('ul', {}, details.map(item => h('li', {}, item.path ? h('code', {}, `${item.path}: `) : null, item.message || item.code)));
 }
 
-export function errorBox(error) {
-  return h('div', { className: 'error-box', role: 'alert' }, h('p', {}, error.message || String(error)), error.details?.length ? detailsList(error.details) : null);
+export function errorBox(error, retry) {
+  return h('div', { className: 'error-box', role: 'alert' }, h('p', {}, error.message || String(error)), error.details?.length ? detailsList(error.details) : null, retry ? button('Retry', retry) : null);
 }
 
 export function button(label, action, className = '', attrs = {}) {
@@ -70,7 +70,7 @@ export async function busy(control, errors, action) {
   if (errors) clear(errors);
   try { return await action(); } catch (error) {
     if (error.name !== 'AbortError') {
-      if (errors) clear(errors, errorBox(error));
+      if (errors) clear(errors, errorBox(error, error.code === 'network_error' ? () => control.click() : undefined));
       else toast(error.message);
     }
   } finally { control.disabled = false; }

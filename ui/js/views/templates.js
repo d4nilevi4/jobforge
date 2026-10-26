@@ -1,9 +1,10 @@
 import { api } from '../api.js';
 import { h, clear, button, field, busy, toast, confirmDialog } from '../dom.js';
+import { plural } from '../lib.js';
 
 export async function templatesView(root) {
   const templates = await api.get('/templates');
-  root.append(h('h1', {}, 'Templates'), h('p', { className: 'muted' }, 'Choose a layout or fork a built-in template to make your own.'), templates.length ? h('div', { className: 'stack' }, templates.map(template => h('article', { className: 'card' }, h('h2', {}, h('a', { href: `#/templates/${encodeURIComponent(template.id)}` }, template.name)), h('p', {}, template.description || ''), h('div', { className: 'meta small' }, h('span', { className: 'badge' }, template.kind === 'resume' ? 'Resume' : 'Cover letter'), template.builtin ? h('span', { className: 'badge' }, 'Built-in') : null, h('span', {}, `Paper: ${template.paper}`), h('span', {}, `Max pages: ${template.max_pages}`), h('span', {}, `Version: ${template.version}`))))) : h('div', { className: 'empty' }, 'No templates are available. Check the server template directory, then reload this page.'));
+  root.append(h('h1', {}, 'Templates'), h('p', { className: 'muted' }, 'Choose a layout or fork a built-in template to make your own.'), templates.length ? h('div', { className: 'stack' }, templates.map(template => h('article', { className: 'card' }, h('h2', {}, h('a', { href: `#/templates/${encodeURIComponent(template.id)}` }, template.name)), h('p', {}, template.description || ''), h('div', { className: 'meta small' }, h('span', { className: 'badge' }, template.kind === 'resume' ? 'Resume' : 'Cover letter'), template.builtin ? h('span', { className: 'badge' }, 'Built-in') : null, h('span', {}, `Paper: ${template.paper}`), h('span', {}, `Maximum: ${template.max_pages} ${plural(template.max_pages, 'page', 'pages')}`), h('span', {}, `Version: ${template.version}`))))) : h('div', { className: 'empty' }, 'No templates are available. Check the server template directory, then reload this page.'));
 }
 
 function syntaxHelp() {
@@ -43,7 +44,7 @@ export async function templateView(root, ctx, id) {
     toast('Custom template created.');
     location.hash = `#/templates/${encodeURIComponent(result.id)}`;
   }));
-  root.append(h('a', { href: '#/templates' }, 'All templates'), h('div', { className: 'page-heading' }, h('div', {}, h('h1', {}, template.meta.name), h('p', {}, template.meta.description || '')), template.builtin ? h('span', { className: 'badge' }, 'Built-in') : null), h('p', { className: 'muted small' }, `${template.kind === 'resume' ? 'Resume' : 'Cover letter'} · ${template.meta.paper} · Max pages: ${template.meta.max_pages} · Version ${template.version}`), errors, fork);
+  root.append(h('a', { href: '#/templates' }, 'All templates'), h('div', { className: 'page-heading' }, h('div', {}, h('h1', {}, template.meta.name), h('p', {}, template.meta.description || '')), template.builtin ? h('span', { className: 'badge' }, 'Built-in') : null), h('p', { className: 'muted small' }, `${template.kind === 'resume' ? 'Resume' : 'Cover letter'} · ${template.meta.paper} · Maximum: ${template.meta.max_pages} ${plural(template.meta.max_pages, 'page', 'pages')} · Version ${template.version}`), errors, fork);
   if (!template.builtin) {
     const save = button('Save', () => busy(save, errors, async () => {
       const result = await api.put(path, { meta: parseMeta(meta.value), source: source.value });

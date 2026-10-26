@@ -1,13 +1,13 @@
 import { api } from '../api.js';
 import { h, clear, button, tabs, busy, toast, errorBox, detailsList, confirmDialog, noteDialog, externalLink, copyText, downloadBlob } from '../dom.js';
-import { legalActions, statusLabel, relativeTime } from '../lib.js';
+import { legalActions, statusLabel, relativeTime, plural } from '../lib.js';
 
 export async function applicationView(root, ctx, id) {
   const path = `/applications/${encodeURIComponent(id)}`;
   const data = await api.get(path);
   const vacancy = data.vacancy;
   const errors = h('div');
-  const actions = h('div', { className: 'actions' });
+  const actions = h('div', { className: 'actions application-actions' });
   for (const action of legalActions(data.status, { hasResume: data.has_resume ?? Boolean(data.resume) })) {
     const control = button(action.label, async () => {
       const note = action.needsNote ? await noteDialog(action.label) : '';
@@ -27,44 +27,82 @@ export async function applicationView(root, ctx, id) {
   actions.append(remove);
   root.append(h('a', { href: '#/applications' }, 'All applications'), h('div', { className: 'page-heading' }, h('div', {}, h('h1', {}, vacancy.title || 'Untitled position'), h('p', {}, [vacancy.company, vacancy.location].filter(Boolean).join(' · ')), h('div', { className: 'meta' }, externalLink('Open vacancy', vacancy.url), vacancy.source ? h('span', {}, `Source: ${vacancy.source}`) : null, data.track_id ? h('a', { href: `#/resumes/${encodeURIComponent(data.track_id)}` }, `Track: ${data.track_id}`) : null, h('span', {}, `Language: ${vacancy.language || '—'}`), data.verdict ? h('span', {}, `Verdict: ${{ apply: 'Apply', maybe: 'Maybe', skip: 'Skip' }[data.verdict] || data.verdict}`) : null, data.score !== null && data.score !== undefined ? h('span', {}, `Score: ${Math.round(data.score * 100)}%`) : null)), h('span', { className: `badge ${data.status}` }, statusLabel(data.status))), actions, errors, h('hr'));
   let selected = 'resume';
+  let sideBySide = false;
+  try { sideBySide = localStorage.getItem('jobforge.sideBySide') === 'true'; } catch { /* Tabs remain the default when storage is unavailable. */ }
+  const wideScreen = window.matchMedia('(min-width: 1200px)');
   const tabHost = h('div');
   const panel = h('section', { role: 'tabpanel', 'aria-label': 'Application document' });
-  root.append(tabHost, panel);
+  const toggle = button('Side by side', () => {
+    sideBySide = !sideBySide;
+    try { localStorage.setItem('jobforge.sideBySide', String(sideBySide)); } catch { /* The choice still applies to the current view. */ }
+    select(selected);
+  }, 'layout-toggle');
+  function updateLayout() { select(selected); }
+  wideScreen.addEventListener('change', updateLayout);
+  ctx.onCleanup(() => wideScreen.removeEventListener('change', updateLayout));
+  root.append(h('div', { className: 'document-controls' }, tabHost, toggle), panel);
   const downloadName = type => `${vacancy.company || 'Application'} - ${vacancy.title || id} - ${type}.pdf`.replace(/[\\/:*?"<>|]/g, '-');
   async function pdf(target, file, label) {
-    if (!file) { target.append(h('p', { className: 'muted' }, `${label} is not available.`)); return; }
+    if (!file) { target.append(h('p', { className: 'muted' }, `${label} PDF is not available.`)); return; }
     const errors = h('div');
     const download = button('Download PDF', () => busy(download, errors, async () => downloadBlob(await api.getBlob(`${file}${file.includes('?') ? '&' : '?'}dl=1`), downloadName(label))));
     const frameHost = h('div', {}, h('p', { className: 'muted' }, `Loading ${label}…`));
     target.append(download, errors, frameHost);
-    try {
-      const blob = await api.getBlob(file);
-      if (!ctx.active || !panel.contains(target)) return;
-      clear(frameHost, h('iframe', { className: 'pdf-frame', title: label, src: ctx.objectURL(blob) }));
-    } catch (error) { if (ctx.active) clear(frameHost, errorBox(error)); }
+    function failed(error) {
+      if (ctx.active && panel.contains(target)) clear(frameHost, h('p', {}, `${label} PDF could not be loaded.`), errorBox(error, load));
+    }
+    async function load() {
+      clear(frameHost, h('p', { className: 'muted', role: 'status' }, `Loading ${label} PDF…`));
+      try {
+        const blob = await api.getBlob(file);
+        if (!ctx.active || !panel.contains(target)) return;
+        clear(frameHost, h('iframe', { className: 'pdf-frame', title: `${label} PDF`, src: ctx.objectURL(blob), onerror: () => failed(new Error(`The ${label} PDF viewer could not open ${file}. Retry or use Download PDF to open it separately.`)) }));
+      } catch (error) { failed(error); }
+    }
+    await load();
+  }
+  function resume(target) {
+    if (!data.resume) {
+      target.append(h('div', { className: 'empty' }, 'No resume was filed for this application. Skipped applications can contain only a vacancy and notes.'));
+      return;
+    }
+    const pages = data.pages?.resume;
+    target.append(h('p', { className: 'muted small' }, `Template: ${data.resume.template || '—'} · ${pages ?? 'Unknown'} ${plural(pages, 'page', 'pages')}`));
+    if (data.warnings?.length) target.append(h('div', { className: 'callout' }, h('h3', {}, `${data.warnings.length} ${plural(data.warnings.length, 'warning', 'warnings')}`), detailsList(data.warnings)));
+    const fileHost = h('div');
+    target.append(fileHost);
+    pdf(fileHost, data.files?.resume_pdf, 'Resume');
+  }
+  function cover(target) {
+    if (!data.cover) {
+      target.append(h('div', { className: 'empty' }, 'No cover letter was filed for this application.'));
+      return;
+    }
+    const pages = data.pages?.cover;
+    target.append(h('div', { className: 'card' }, h('pre', { className: 'readable' }, data.cover.content?.text || ''), h('hr'), button('Copy text', () => copyText(data.cover.content?.text || ''))), h('p', { className: 'muted small' }, `Template: ${data.cover.template || '—'} · ${pages ?? 'Unknown'} ${plural(pages, 'page', 'pages')}`));
+    const fileHost = h('div');
+    target.append(fileHost);
+    pdf(fileHost, data.files?.cover_pdf, 'Cover letter');
   }
   function select(next) {
-    selected = next;
-    clear(tabHost, tabs([{ id: 'resume', label: 'Resume' }, { id: 'cover', label: 'Cover letter' }, { id: 'vacancy', label: 'Vacancy' }, { id: 'notes', label: 'Notes' }, { id: 'history', label: 'History' }], selected, select, 'Application details'));
+    const columns = wideScreen.matches && sideBySide;
+    selected = columns && next === 'cover' ? 'resume' : next;
+    toggle.setAttribute('aria-pressed', String(sideBySide));
+    toggle.hidden = !wideScreen.matches;
+    const documents = columns ? [{ id: 'resume', label: 'Documents' }] : [{ id: 'resume', label: 'Resume' }, { id: 'cover', label: 'Cover letter' }];
+    clear(tabHost, tabs([...documents, { id: 'vacancy', label: 'Vacancy' }, { id: 'notes', label: 'Notes' }, { id: 'history', label: 'History' }], selected, select, 'Application details'));
     clear(panel);
-    panel.setAttribute('aria-label', { resume: 'Resume', cover: 'Cover letter', vacancy: 'Vacancy', notes: 'Notes', history: 'History' }[selected]);
-    if (selected === 'resume') {
-      if (!data.resume) panel.append(h('div', { className: 'empty' }, 'No resume was filed for this application. Skipped applications can contain only a vacancy and notes.'));
-      else {
-        panel.append(h('p', { className: 'muted small' }, `Template: ${data.resume.template || '—'} · Pages: ${data.pages?.resume ?? '—'}`));
-        if (data.warnings?.length) panel.append(h('div', { className: 'callout' }, h('h3', {}, `${data.warnings.length} warnings`), detailsList(data.warnings)));
-        const target = h('div');
-        panel.append(target);
-        pdf(target, data.files?.resume_pdf, 'Resume');
-      }
+    panel.setAttribute('aria-label', columns && selected === 'resume' ? 'Resume and cover letter' : { resume: 'Resume', cover: 'Cover letter', vacancy: 'Vacancy', notes: 'Notes', history: 'History' }[selected]);
+    if (columns && selected === 'resume') {
+      const resumePane = h('section', {}, h('h2', {}, 'Resume'));
+      const coverPane = h('section', {}, h('h2', {}, 'Cover letter'));
+      panel.append(h('div', { className: 'document-columns' }, resumePane, coverPane));
+      resume(resumePane);
+      cover(coverPane);
+    } else if (selected === 'resume') {
+      resume(panel);
     } else if (selected === 'cover') {
-      if (!data.cover) panel.append(h('div', { className: 'empty' }, 'No cover letter was filed for this application.'));
-      else {
-        panel.append(h('div', { className: 'card' }, h('pre', { className: 'readable' }, data.cover.content?.text || ''), h('hr'), button('Copy text', () => copyText(data.cover.content?.text || ''))), h('p', { className: 'muted small' }, `Template: ${data.cover.template || '—'} · Pages: ${data.pages?.cover ?? '—'}`));
-        const target = h('div');
-        panel.append(target);
-        pdf(target, data.files?.cover_pdf, 'Cover letter');
-      }
+      cover(panel);
     } else if (selected === 'vacancy') {
       panel.append(h('div', { className: 'card' }, h('p', {}, externalLink('Open vacancy', vacancy.url), vacancy.source ? ` · ${vacancy.source}` : ''), h('pre', { className: 'readable' }, vacancy.text || 'No vacancy text was provided.')));
     } else if (selected === 'notes') {

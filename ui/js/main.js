@@ -1,6 +1,6 @@
 import { api, getToken, setToken } from './api.js';
 import { h, clear, button, errorBox } from './dom.js';
-import { parseHashRoute, stripToken } from './lib.js';
+import { parseHashRoute, stripToken, routeChanged } from './lib.js';
 import { applicationsView } from './views/applications.js';
 import { applicationView } from './views/application.js';
 import { profileView } from './views/profile.js';
@@ -14,6 +14,9 @@ let version = null;
 let authError = null;
 let current = null;
 let chromeDismissed = false;
+let previousHash = null;
+
+history.scrollRestoration = 'manual';
 
 function renderBanners() {
   const host = clear(document.getElementById('banners'));
@@ -41,6 +44,9 @@ function createContext() {
 }
 
 async function render() {
+  const resetNavigation = routeChanged(previousHash, location.hash);
+  previousHash = location.hash;
+  const scroll = { left: window.scrollX, top: window.scrollY };
   current?.dispose();
   const ctx = createContext();
   current = ctx;
@@ -72,24 +78,35 @@ async function render() {
       else throw new Error('This page does not exist. Choose a page from the navigation.');
     }
   } catch (error) {
-    if (ctx.active) clear(root, h('h1', {}, 'Unable to load page'), errorBox(error), button('Try again', () => ctx.refresh()));
+    if (ctx.active) clear(root, h('h1', {}, 'Unable to load page'), errorBox(error, () => ctx.refresh()));
   }
   if (ctx.active) {
     clear(main, root);
-    document.title = `${root.querySelector('h1')?.textContent || 'Workspace'} · JobForge`;
-    main.focus({ preventScroll: true });
+    const heading = root.querySelector('h1');
+    heading?.setAttribute('tabindex', '-1');
+    document.title = `${heading?.textContent || 'Workspace'} · JobForge`;
+    if (resetNavigation) {
+      window.scrollTo({ left: 0, top: 0, behavior: 'instant' });
+      heading?.focus({ preventScroll: true });
+    } else window.scrollTo({ ...scroll, behavior: 'instant' });
   }
 }
 
-window.addEventListener('hashchange', render);
+window.addEventListener('hashchange', event => {
+  const oldHash = new URL(event.oldURL).hash;
+  if (routeChanged(oldHash, location.hash) || parseHashRoute(location.hash).token !== undefined) render();
+});
 document.querySelector('.skip-link').addEventListener('click', event => { event.preventDefault(); main.focus(); });
 window.addEventListener('jobforge:unauthorized', event => { authError = event.detail; render(); });
 window.addEventListener('jobforge:signout', () => { authError = null; render(); });
-api.get('/version', { public: true }).then(data => {
-  version = data;
-  document.getElementById('version').textContent = `v${data.version}`;
-  renderBanners();
-}).catch(error => {
-  clear(document.getElementById('banners'), errorBox(error));
-});
+async function loadVersion() {
+  try {
+    version = await api.get('/version', { public: true });
+    document.getElementById('version').textContent = `v${version.version}`;
+    renderBanners();
+  } catch (error) {
+    clear(document.getElementById('banners'), errorBox(error, loadVersion));
+  }
+}
+loadVersion();
 render();

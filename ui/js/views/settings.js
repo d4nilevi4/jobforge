@@ -8,16 +8,16 @@ export async function settingsView(root, ctx) {
   const tokenHost = h('div');
   const errors = h('div');
   function renderTokens(items) {
-    clear(tokenHost, items.length ? h('div', { className: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, ['Name', 'Scopes', 'Created', 'Last used', ''].map(label => h('th', { scope: 'col' }, label)))), h('tbody', {}, items.map(token => {
+    clear(tokenHost, items.length ? h('div', { className: 'table-wrap', tabindex: '0', role: 'region', 'aria-label': 'Tokens' }, h('table', { className: 'tokens-table' }, h('thead', {}, h('tr', {}, ['Name', 'Scopes', 'Created', 'Last used', 'Actions'].map(label => h('th', { scope: 'col' }, label)))), h('tbody', {}, items.map(token => {
       const revoke = button('Revoke', async () => {
         if (!await confirmDialog('Revoke token?', `Agents using “${token.name}” will lose access. Revoking your current token also signs you out.`, 'Revoke')) return;
         await busy(revoke, errors, async () => { await api.remove(`/tokens/${encodeURIComponent(token.id)}`); await loadTokens(); toast('Token revoked.'); });
       }, 'danger');
-      return h('tr', {}, h('td', {}, token.name), h('td', { 'data-label': 'Scopes' }, h('code', {}, (token.scopes || []).join(', '))), h('td', { 'data-label': 'Created' }, h('time', { datetime: token.created_at, title: token.created_at }, relativeTime(token.created_at))), h('td', { 'data-label': 'Last used' }, token.last_used_at ? h('time', { datetime: token.last_used_at, title: token.last_used_at }, relativeTime(token.last_used_at)) : 'Never'), h('td', {}, revoke));
+      return h('tr', {}, h('td', { 'data-label': 'Name' }, token.name), h('td', { 'data-label': 'Scopes' }, h('code', {}, (token.scopes || []).join(', '))), h('td', { className: 'token-date', 'data-label': 'Created' }, h('time', { datetime: token.created_at, title: token.created_at }, relativeTime(token.created_at))), h('td', { className: 'token-date', 'data-label': 'Last used' }, token.last_used_at ? h('time', { datetime: token.last_used_at, title: token.last_used_at }, relativeTime(token.last_used_at)) : 'Never'), h('td', { 'data-label': 'Actions' }, revoke));
     })))) : h('p', { className: 'muted' }, 'No active tokens. Create a token to connect an agent.'));
   }
   async function loadTokens() {
-    try { const items = await api.get('/tokens'); if (ctx.active) renderTokens(items); } catch (error) { if (ctx.active) clear(errors, errorBox(error)); }
+    try { const items = await api.get('/tokens'); if (ctx.active) { renderTokens(items); clear(errors); } } catch (error) { if (ctx.active) clear(errors, errorBox(error, loadTokens)); }
   }
   renderTokens(tokens);
   const exportButton = button('Export all data', () => busy(exportButton, errors, async () => {

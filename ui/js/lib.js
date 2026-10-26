@@ -1,5 +1,9 @@
 export const statuses = ['draft', 'needs_review', 'approved', 'sent', 'interview', 'offer', 'rejected', 'skipped'];
 
+export function plural(n, one, other) {
+  return n === 1 ? one : other;
+}
+
 export function statusLabel(status) {
   const labels = { draft: 'Draft', needs_review: 'Needs review', approved: 'Approved', sent: 'Sent', interview: 'Interview', offer: 'Offer', rejected: 'Rejected', skipped: 'Skipped' };
   return Object.hasOwn(labels, status) ? labels[status] : status || 'Unknown';
@@ -15,7 +19,7 @@ export function relativeTime(iso, now = Date.now()) {
   const units = [[31536000, 'year'], [2592000, 'month'], [86400, 'day'], [3600, 'hour'], [60, 'minute']];
   const [size, unit] = units.find(([size]) => Math.abs(seconds) >= size);
   const count = Math.floor(Math.abs(seconds) / size);
-  const label = `${count} ${unit}${count === 1 ? '' : 's'}`;
+  const label = `${count} ${plural(count, unit, `${unit}s`)}`;
   return seconds < 0 ? `In ${label}` : `${label} ago`;
 }
 
@@ -50,6 +54,13 @@ export function parseHashRoute(hash = '') {
   if (!result.path.length) result.path = ['applications'];
   if (tokens.length) result.token = decode(tokens[tokens.length - 1][1]);
   return result;
+}
+
+export function routeChanged(previousHash, nextHash) {
+  if (previousHash === null || previousHash === undefined) return true;
+  const previous = parseHashRoute(previousHash).path;
+  const next = parseHashRoute(nextHash).path;
+  return previous.length !== next.length || previous.some((part, index) => part !== next[index]);
 }
 
 export function stripToken(hash = '') {

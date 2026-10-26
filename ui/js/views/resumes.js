@@ -1,6 +1,6 @@
 import { api } from '../api.js';
 import { h, clear, button, field, busy, toast, detailsList, confirmDialog } from '../dom.js';
-import { buildBaseFromProfile, slugValid, relativeTime } from '../lib.js';
+import { buildBaseFromProfile, slugValid, relativeTime, plural } from '../lib.js';
 
 export async function resumesView(root) {
   const tracks = await api.get('/tracks');
@@ -62,7 +62,7 @@ export async function resumeView(root, ctx, id) {
       if (coverText.value.trim()) track.base_cover = coverText.value;
       const result = await api.put(`/tracks/${encodeURIComponent(slug.value)}`, track);
       if (!ctx.active) return;
-      clear(warnings, result.warnings?.length ? h('div', { className: 'callout' }, h('h3', {}, 'Warnings'), detailsList(result.warnings)) : null);
+      clear(warnings, result.warnings?.length ? h('div', { className: 'callout' }, h('h3', {}, `${result.warnings.length} ${plural(result.warnings.length, 'warning', 'warnings')}`), detailsList(result.warnings)) : null);
       toast('Resume variant saved.');
       if (creating) {
         slug.readOnly = true;

@@ -11,7 +11,7 @@ export async function signinView(root, { onSignin, error }) {
     clear(errors);
     submit.disabled = true;
     setToken(token.value);
-    try { await api.get('/profile'); onSignin(); } catch (error) { clear(errors, errorBox(error)); } finally { submit.disabled = false; }
+    try { await api.get('/profile'); onSignin(); } catch (error) { clear(errors, errorBox(error, () => form.requestSubmit())); } finally { submit.disabled = false; }
   });
   root.append(form);
 }

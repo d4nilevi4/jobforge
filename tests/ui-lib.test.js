@@ -1,6 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { relativeTime, statusLabel, statuses, legalActions, parseHashRoute, stripToken, buildBaseFromProfile, cleanProfile, linesToArray, arrayToLines, slugValid, diffKeys, formatBytes } from '../ui/js/lib.js';
+import { plural, relativeTime, statusLabel, statuses, legalActions, parseHashRoute, routeChanged, stripToken, buildBaseFromProfile, cleanProfile, linesToArray, arrayToLines, slugValid, diffKeys, formatBytes } from '../ui/js/lib.js';
+
+test('plural selects the singular only for one and supports irregular forms', () => {
+  assert.equal(plural(1, 'warning', 'warnings'), 'warning');
+  for (const count of [0, 2, 50, -1, 1.5]) assert.equal(plural(count, 'warning', 'warnings'), 'warnings');
+  assert.equal(plural(1, 'person', 'people'), 'person');
+  assert.equal(plural(2, 'person', 'people'), 'people');
+  assert.equal(plural(1, 'application', 'applications'), 'application');
+  assert.equal(plural(1, 'revision', 'revisions'), 'revision');
+  assert.equal(plural(2, 'page', 'pages'), 'pages');
+});
 
 test('relativeTime handles boundaries, future dates, and invalid input', () => {
   const now = Date.parse('2026-01-02T12:00:00Z');
@@ -43,6 +53,24 @@ test('hash routing supports every screen, encoded ids, and default applications'
   for (const path of ['applications', 'applications/42', 'profile', 'resumes', 'resumes/new', 'resumes/backend', 'templates', 'templates/classic', 'settings']) assert.deepEqual(parseHashRoute(`#/${path}`), { path: path.split('/') });
   assert.deepEqual(parseHashRoute('#/templates/custom%2Dexample'), { path: ['templates', 'custom-example'] });
   assert.deepEqual(parseHashRoute('#/resumes/%invalid'), { path: ['resumes', '%invalid'] });
+});
+
+test('routeChanged resets navigation for a new path while ignoring query-only changes', () => {
+  for (const previous of [null, undefined]) assert.equal(routeChanged(previous, '#/applications'), true);
+  const unchanged = [
+    ['', '#/applications'], ['#/', '#/applications'],
+    ['#/profile', '#/profile'], ['#/applications?q=first', '#/applications?q=second&status=draft'],
+    ['#/settings?tab=tokens', '#/settings'], ['#/profile&token=old', '#/profile?token=new'],
+    ['#/resumes/example', '#/resumes/%65xample'], ['#/resumes/%invalid', '#/resumes/%invalid']
+  ];
+  for (const [previous, next] of unchanged) assert.equal(routeChanged(previous, next), false, `${previous} -> ${next}`);
+  const changed = [
+    ['#/applications', '#/profile'], ['#/applications', '#/applications/1'],
+    ['#/applications/1?q=keep', '#/applications/2?q=keep'],
+    ['#/resumes/a%2Fb', '#/resumes/a/b'], ['#/templates/classic', '#/templates/compact'],
+    ['#/settings', '#/applications?source=settings']
+  ];
+  for (const [previous, next] of changed) assert.equal(routeChanged(previous, next), true, `${previous} -> ${next}`);
 });
 
 test('fragment tokens are decoded, stripped, and never left in the route', () => {

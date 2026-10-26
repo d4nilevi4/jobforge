@@ -1,6 +1,6 @@
 import { api, ApiError } from '../api.js';
 import { h, clear, button, field, tabs, busy, toast, errorBox, dialog } from '../dom.js';
-import { cleanProfile, diffKeys, linesToArray, arrayToLines, relativeTime } from '../lib.js';
+import { cleanProfile, diffKeys, linesToArray, arrayToLines, relativeTime, plural } from '../lib.js';
 import { setupAgentBox } from '../agent.js';
 
 function parseDocument(text) {
@@ -67,8 +67,11 @@ export async function profileView(root, ctx) {
   const status = h('span', { className: 'muted small', role: 'status' });
   const save = button('Save', () => saveProfile(save), 'primary');
   const bar = h('div', { className: 'sticky-bar' }, status, save);
+  const sectionNav = h('nav', { className: 'profile-nav', 'aria-label': 'On this page' });
+  const editor = h('div', { className: 'profile-editor' }, panel, bar);
+  const layout = h('div', { className: 'profile-layout' }, sectionNav, editor);
   const onboarding = response.empty || !response.profile ? setupAgentBox() : null;
-  root.append(h('div', { className: 'page-heading' }, h('div', {}, h('h1', {}, 'About me'), h('p', { className: 'muted' }, 'Keep your facts here. Agents use this profile to prepare honest applications.'))), onboarding, errors, warnings, tabHost, panel, bar);
+  root.append(h('div', { className: 'page-heading' }, h('div', {}, h('h1', {}, 'About me'), h('p', { className: 'muted' }, 'Keep your facts here. Agents use this profile to prepare honest applications.'))), onboarding, errors, warnings, tabHost, layout);
 
   function updateDirty() {
     let changes;
@@ -151,7 +154,7 @@ export async function profileView(root, ctx) {
     if (!doc.identity || typeof doc.identity !== 'object' || Array.isArray(doc.identity)) doc.identity = { name: '' };
     if (!doc.rules || typeof doc.rules !== 'object' || Array.isArray(doc.rules)) doc.rules = {};
     const identity = doc.identity;
-    clear(panel,
+    const sections = [
       h('section', { className: 'card' }, h('h2', {}, 'Identity'), h('div', { className: 'form-grid' }, textField(identity, 'name', 'Name'), textField(identity, 'email', 'Email', { type: 'email' }), textField(identity, 'phone', 'Phone', { type: 'tel' }), textField(identity, 'location', 'Location')), localized(identity, 'name_localized', 'Name per language'), h('hr'), localized(identity, 'availability', 'Availability per language'), h('hr'), repeat(identity, 'links', 'Links', 'link', [['label', 'Label'], ['url', 'URL', { type: 'url' }]])),
       h('section', { className: 'card' }, h('h2', {}, 'About'), textField(doc, 'about', 'Notes for agents: goals, tone, what to avoid', { textarea: true, rows: 5 })),
       repeat(doc, 'experience', 'Experience', 'experience', [['company', 'Company'], ['title', 'Title'], ['dates', 'Dates'], ['location', 'Location'], ['bullets', 'Bullets (one per line)', { lines: true, rows: 5 }]], { move: true }),
@@ -162,7 +165,22 @@ export async function profileView(root, ctx) {
       repeat(doc, 'languages', 'Languages', 'language', [['name', 'Name'], ['level', 'Level']]),
       repeat(doc, 'do_not_claim', 'Do not claim', 'rule', [['text', 'Rule text', { textarea: true }], ['patterns', 'Regex patterns (one per line)', { lines: true, className: 'mono', spellcheck: 'false' }]]),
       h('section', { className: 'card' }, h('h2', {}, 'Rules'), textField(doc.rules, 'cover_max_words', 'Cover max words', { number: true }), repeat(doc.rules, 'forbid_patterns', 'Forbidden patterns', 'forbidden pattern', [['pattern', 'Pattern', { className: 'mono', spellcheck: 'false' }], ['message', 'Message']]), textField(doc.rules, 'notes', 'Notes', { textarea: true }))
-    );
+    ];
+    const keys = ['identity', 'about', 'experience', 'projects', 'education', 'skills', 'familiar', 'languages', 'do-not-claim', 'rules'];
+    clear(sectionNav, h('h2', {}, 'On this page'), h('ul', {}, sections.map((section, index) => {
+      section.id = `profile-${keys[index]}`;
+      section.classList.add('profile-section');
+      const heading = section.querySelector('h2');
+      heading.setAttribute('tabindex', '-1');
+      return h('li', {}, h('a', { href: '#/profile', 'aria-controls': section.id, onclick: event => {
+        event.preventDefault();
+        section.scrollIntoView({ block: 'start' });
+        const currentHeading = section.querySelector('h2');
+        currentHeading.setAttribute('tabindex', '-1');
+        currentHeading.focus({ preventScroll: true });
+      } }, heading.textContent));
+    })));
+    clear(panel, sections);
   }
 
   async function renderHistory() {
@@ -170,7 +188,7 @@ export async function profileView(root, ctx) {
     try {
       const revisions = await api.get('/profile/revisions');
       if (!ctx.active || selected !== 'history') return;
-      clear(panel, revisions.length ? h('div', { className: 'stack' }, revisions.map(revision => {
+      clear(panel, h('p', { className: 'muted small' }, `${revisions.length} ${plural(revisions.length, 'revision', 'revisions')}`), revisions.length ? h('div', { className: 'stack' }, revisions.map(revision => {
         const localErrors = h('div');
         const view = button('View JSON', () => busy(view, localErrors, async () => {
           const document = await api.get(`/profile/revisions/${encodeURIComponent(revision.id)}`);
@@ -186,7 +204,7 @@ export async function profileView(root, ctx) {
         }));
         return h('article', { className: 'card' }, h('p', {}, h('time', { datetime: revision.created_at, title: revision.created_at }, relativeTime(revision.created_at)), revision.token_name ? ` · ${revision.token_name}` : '', ` · Revision ${revision.id}`), h('div', { className: 'actions' }, view, load), localErrors);
       })) : h('div', { className: 'empty' }, 'No revisions yet. Save your profile to create the first revision.'));
-    } catch (error) { if (ctx.active && selected === 'history') clear(panel, errorBox(error), button('Try again', renderHistory)); }
+    } catch (error) { if (ctx.active && selected === 'history') clear(panel, errorBox(error, renderHistory)); }
   }
 
   function select(next) {
@@ -194,6 +212,8 @@ export async function profileView(root, ctx) {
       try { doc = parseDocument(jsonInput.value); clear(errors); } catch (error) { clear(errors, errorBox(error)); return; }
     }
     selected = next;
+    layout.classList.toggle('with-section-nav', next === 'forms');
+    sectionNav.hidden = next !== 'forms';
     clear(tabHost, tabs([{ id: 'forms', label: 'Forms' }, { id: 'json', label: 'JSON' }, { id: 'history', label: 'History' }], selected, select, 'Profile sections'));
     panel.setAttribute('aria-label', `${selected === 'json' ? 'JSON' : selected === 'forms' ? 'Forms' : 'History'} profile tab`);
     bar.hidden = next === 'history';
