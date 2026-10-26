@@ -152,3 +152,10 @@ export function formatBytes(bytes) {
   const index = Math.max(0, Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1));
   return `${Number((bytes / 1024 ** index).toFixed(index ? 1 : 0))} ${units[index]}`;
 }
+
+/** Screen-only padding so a print-sized template preview does not touch the frame edge. */
+export function previewDocument(html) {
+  const style = '<style>html{background:#fff}body{box-sizing:border-box;max-width:860px;margin:0 auto;padding:24px}</style>';
+  const text = String(html);
+  return /<head[^>]*>/i.test(text) ? text.replace(/<head[^>]*>/i, (match) => `${match}${style}`) : `${style}${text}`;
+}

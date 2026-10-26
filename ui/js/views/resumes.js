@@ -1,6 +1,6 @@
 import { api } from '../api.js';
 import { h, clear, button, field, busy, toast, detailsList, confirmDialog } from '../dom.js';
-import { buildBaseFromProfile, slugValid, relativeTime, plural } from '../lib.js';
+import { buildBaseFromProfile, slugValid, relativeTime, plural, previewDocument } from '../lib.js';
 
 export async function resumesView(root) {
   const tracks = await api.get('/tracks');
@@ -46,7 +46,7 @@ export async function resumeView(root, ctx, id) {
   const preview = button('Preview', () => busy(preview, previewErrors, async () => {
     if (!resume.value) throw new Error('Choose a resume template before previewing.');
     const html = await api.post(`/templates/${encodeURIComponent(resume.value)}/preview?format=html`, { content: parseBase(base.value), lang: language.value }, { format: 'text' });
-    if (ctx.active) clear(previewHost, h('iframe', { className: 'preview-frame', title: 'Resume preview', sandbox: '', srcdoc: html }));
+    if (ctx.active) clear(previewHost, h('iframe', { className: 'preview-frame', title: 'Resume preview', sandbox: '', srcdoc: previewDocument(html) }));
   }));
   const fill = button('Fill from my profile', () => {
     base.value = JSON.stringify(buildBaseFromProfile(profileResponse.profile, language.value || 'en'), null, 2);

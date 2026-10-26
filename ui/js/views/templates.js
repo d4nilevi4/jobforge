@@ -1,6 +1,6 @@
 import { api } from '../api.js';
 import { h, clear, button, field, busy, toast, confirmDialog } from '../dom.js';
-import { plural } from '../lib.js';
+import { plural, previewDocument } from '../lib.js';
 
 export async function templatesView(root) {
   const templates = await api.get('/templates');
@@ -36,7 +36,7 @@ export async function templateView(root, ctx, id) {
     if (meta && (meta.value !== savedMeta || source.value !== savedSource)) throw new Error('The preview endpoint renders the saved template. Save your meta and source changes, then choose Preview.');
     const sequence = ++previewSequence;
     const html = await api.post(`${path}/preview?format=html`, { lang: language.value }, { format: 'text' });
-    if (ctx.active && sequence === previewSequence) clear(previewHost, h('iframe', { className: 'preview-frame', title: `${template.meta.name} preview`, sandbox: '', srcdoc: html }));
+    if (ctx.active && sequence === previewSequence) clear(previewHost, h('iframe', { className: 'preview-frame', title: `${template.meta.name} preview`, sandbox: '', srcdoc: previewDocument(html) }));
   }
   language.addEventListener('change', () => busy(preview, previewErrors, renderPreview));
   const fork = button('Fork as custom', () => busy(fork, errors, async () => {

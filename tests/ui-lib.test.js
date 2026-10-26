@@ -171,3 +171,11 @@ test('diffKeys compares top-level values deeply without depending on object key 
 test('formatBytes reports readable binary units including boundary values', () => {
   for (const [value, expected] of [[0, '0 B'], [-1, '0 B'], [NaN, '0 B'], [Infinity, '0 B'], [0.5, '1 B'], [1, '1 B'], [1023, '1023 B'], [1024, '1 KB'], [1536, '1.5 KB'], [1048576, '1 MB'], [1024 ** 3, '1 GB'], [1024 ** 4, '1 TB']]) assert.equal(formatBytes(value), expected);
 });
+
+test('previewDocument pads the preview and keeps the original document', async () => {
+  const { previewDocument } = await import('../ui/js/lib.js');
+  const withHead = previewDocument('<!doctype html><html><head><title>x</title></head><body>Hi</body></html>');
+  assert.match(withHead, /<head><style>/);
+  assert.ok(withHead.includes('<body>Hi</body>'));
+  assert.match(previewDocument('<p>bare</p>'), /^<style>.*<\/style><p>bare<\/p>$/s);
+});
